@@ -1,0 +1,30 @@
+WebSee10.zip
+
+20140704 - 1st beta test release weblook.exe/webview.exe/webview.cmd.
+20140705 - weblook.exe increased number of buffers (iUsed=2 into iUsed=4).
+20140705 - webview.cmd removed the line that invoked gbmsize.exe.
+20140706 - weblook.exe applied mark.exe mpunsafe weblook.exe.
+20140708 - added WebCam Viewer (uvcview.exe and uvcview.cmd).
+20140713 - uvcview.exe added /x parameter to obtain raw video.
+20140713 - uvcview.exe ignore missing EOH bit in stream header.
+20140713 - weblook.exe ignore missing EOH bit in stream header.
+20140713 - uvcview.exe use 3 seconds timeout awaiting iso event.
+20140713 - weblook.exe use 3 seconds timeout awaiting iso event.
+20140713 - uvcview.exe applied mark.exe mpunsafe uvcview.exe.
+20140713 - webview.exe applied mark.exe mpunsafe webview.exe.
+20140714 - uvcview.exe added /cN parameter to select yuyv2rgb matrix.
+20140714 - weblook.exe added /cN parameter to select yuyv2rgb matrix.
+20140714 - uvcview.exe added check for zero iso frame length.
+20140714 - weblook.exe added check for zero iso frame length.
+20140715 - uvcview.exe added /m parameter to select mjpg video.
+20140715 - uvcview.exe added /u parameter to select yuyv video.
+20140715 - weblook.exe added /m parameter to select mjpg video.
+20140715 - weblook.exe added /u parameter to select yuyv video.
+20140724 - uvcview.exe improved mjpg decoder and restart markers.
+20140724 - webview.exe improved mjpg decoder and restart markers.
+20140724 - uvcview.exe added /iN parameter to limit alternate setting.
+20140724 - weblook.exe added /iN parameter to limit alternate setting.
+20140727 - uvcview.exe changed time critical delta from 0 to +31.
+20140727 - weblook.exe changed time critical delta from 0 to +31.
+20140803 - uvcview.exe improved iso buffer completion status handling.
+20140803 - weblook.exe improved iso buffer completion status handling.

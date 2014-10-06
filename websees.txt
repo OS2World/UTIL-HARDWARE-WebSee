@@ -1,0 +1,83 @@
+-------------------------------------------------------------------------------
+WebSee10s.zip - Webcam Support for OS/2 (and eComStation) - Source Code
+-------------------------------------------------------------------------------
+
+Contains the program source code to support UVC compliant webcams attached to
+an OS/2 (or eComStation) system. Made in Holland by Wim Brul.
+
+Requires the Host Controller Drivers usbhcd197.zip from Lars Erdmann.
+Requires the USB Resource Manager usbres01.zip from Wim Brul.
+
+More info at: http://home.hccnet.nl/w.m.brul/uvcvideo/index.html
+
+May be freely used and exchanged. May be modified to suit your own individual
+needs and purposes. You may use this product solely at your own risk. I cannot
+be held responsible for any damages occurring due to your using this product.
+You may not lease, rent or sell this product to any other party. Have fun.
+
+-------------------------------------------------------------------------------
+UvcView - WebCam Viewer - Source Code
+-------------------------------------------------------------------------------
+
+WebCam Viewer for OS/2 (and eComStation) is a 32 bit PM executable program.
+It has been written in turbo assembler ideal mode using the flat memory model.
+It has been compiled with Borland Turbo Assembler for OS/2 version 4.1 and
+linked with Operating System/2 Linear Executable Linker version 2.02.001.
+
+It consists of the following files:
+
+  uvcview.asm - source code
+  uvcview.cmd - rexx procedure
+  uvcview.def - definition file
+  uvcview.exe - executable program
+  uvcview.inc - include file
+  uvcview.lst - listing file
+  uvcview.mak - make file
+  uvcview.map - map file
+  uvcview.obj - object code
+  uvcview.rc - resource script
+  uvcview.res - resource file
+
+-------------------------------------------------------------------------------
+WebLook - WebSee Server - Source Code
+-------------------------------------------------------------------------------
+
+WebSee Server for OS/2 (and eComStation) is a 32 bit OS/2 executable program.
+It has been written in turbo assembler ideal mode using the flat memory model.
+It has been compiled with Borland Turbo Assembler for OS/2 version 4.1 and
+linked with Operating System/2 Linear Executable Linker version 2.02.001.
+
+Consists of the following files:
+
+  weblook.asm - source code
+  weblook.def - definition file
+  weblook.exe - executable program
+  weblook.inc - include file
+  weblook.lst - listing file
+  weblook.mak - make file
+  weblook.map - map file
+  weblook.obj - object code
+
+-------------------------------------------------------------------------------
+WebView - WebSee Client - Source Code
+-------------------------------------------------------------------------------
+
+WebSee Client for OS/2 (and eComStation) is a 32 bit PM executable program.
+It has been written in turbo assembler ideal mode using the flat memory model.
+It has been compiled with Borland Turbo Assembler for OS/2 version 4.1 and
+linked with Operating System/2 Linear Executable Linker version 2.02.001.
+
+It consists of the following files:
+
+  webview.asm - source code
+  webview.cmd - rexx procedure
+  webview.def - definition file
+  webview.exe - executable program
+  webview.inc - include file
+  webview.lst - listing file
+  webview.mak - make file
+  webview.map - map file
+  webview.obj - object code
+  webview.rc - resource script
+  webview.res - resource file
+

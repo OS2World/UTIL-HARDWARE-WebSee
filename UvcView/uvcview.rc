@@ -1,0 +1,15 @@
+menu 1
+begin
+  menuitem "~Snapshot",1
+  menuitem "~Testshot",2
+end
+
+stringtable
+begin
+  0x00 "UvcView 0!0"
+  0x01 "UVC Webcam not found!"
+  0x02 "Device Driver Open error!"
+  0x03 "Obtain Thread error!"
+  0x04 "Supply Thread error!"
+  0x05 "Frame Size error!"
+end

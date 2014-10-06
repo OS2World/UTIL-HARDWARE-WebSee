@@ -1,0 +1,69 @@
+-------------------------------------------------------------------------------
+WebSee10.zip - Webcam Support for OS/2 (and eComStation)
+-------------------------------------------------------------------------------
+
+Provides two mutually exclusive sets of programs for UVC compliant webcams.
+Use either the 640x480 set or the 320x240 set. Made in Holland by Wim Brul.
+
+Requires the Host Controller Drivers usbhcd197.zip from Lars Erdmann.
+Requires the USB Resource Manager usbres01.zip from Wim Brul.
+
+More info at: http://home.hccnet.nl/w.m.brul/uvcvideo/index.html
+
+May be freely used and exchanged, as long as it is not modified. You may
+use this product solely at your own risk. I cannot be held responsible for
+any damages occurring due to your using this product. You may not lease,
+rent or sell this product to any other party. Have fun.
+
+-------------------------------------------------------------------------------
+UvcView - WebCam Viewer
+-------------------------------------------------------------------------------
+
+The WebCam Viewer operates your UVC webcam. Use "uvcview" to watch video.
+Use "uvcview /m" to watch mjpg video. Use "uvcview /u" to watch yuyv video.
+Use "uvcview /c" or "uvcview /c1" or "uvcview /c2" to correct yuyv colors.
+
+The maximize button switches between 320x240 and 640x480 display modes.
+
+Click on "Snapshot" to take a picture. The snapshot will be written to the
+UVCVIEW.BMP and UVCVIEW.JPG files and REXX/2 is started with the UVCVIEW.CMD
+file for post processing. You may replace UVCVIEW.CMD with your own version.
+
+Click on "Testshot" to capture raw input data. Captured raw input data will
+be written to the UVCVIEW.RAW file for later inspection. This could be of help
+in situations where the WebCam Viewer is working but the displayed picture
+stays black. Use "uvcview /x" to include stream headers.
+
+-------------------------------------------------------------------------------
+WebView - WebSee Client
+-------------------------------------------------------------------------------
+
+The WebSee Client obtains an mjpg video stream from the WebSee Server.
+The WebSee Server operates your UVC webcam. Use "webview" to watch video.
+
+Using e.g. "webview /a127.0.0.1 /p14225" connects the WebSee Client to
+TCP/IP address 127.0.0.1 and TCP/IP port 14225. This is the default.
+
+The maximize button switches between 320x240 and 640x480 display modes.
+
+Click on "Snapshot" to take a picture. The snapshot will be written to the
+WEBVIEW.BMP and WEBVIEW.JPG files and REXX/2 is started with the WEBVIEW.CMD
+file for post processing. You may replace WEBVIEW.CMD with your own version.
+
+Click on "Testshot" to capture raw input data. Captured raw input data will
+be written to the WEBVIEW.RAW file for later inspection. This could be of help
+in situations where the WebSee Server and your UVC webcam are working but the
+displayed picture stays black.
+
+-------------------------------------------------------------------------------
+WebLook - WebSee Server
+-------------------------------------------------------------------------------
+
+The WebSee Server operates your UVC webcam. The WebSee Server supplies an
+mjpg video stream to one or more WebSee Clients. Use "weblook" to fetch video.
+Use "weblook /m" to fetch mjpg video. Use "weblook /u" to fetch yuyv video.
+Use "weblook /c" or "weblook /c1" or "weblook /c2" to correct yuyv colors.
+
+Using e.g "weblook /p14225" connects the WebSee Server to TCP/IP port 14225.
+This is the default. The well-known port numbers below 1024 cannot be used.
+

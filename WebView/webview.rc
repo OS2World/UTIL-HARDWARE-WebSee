@@ -1,0 +1,13 @@
+menu 1
+begin
+  menuitem "~Snapshot",1
+  menuitem "~Testshot",2
+end
+
+stringtable
+begin
+  0x00 "WebView 0!0"
+  0x01 "Socket() error!"
+  0x02 "SoClose() error!"
+  0x03 "Obtain Thread error!"
+end

@@ -1,0 +1,4358 @@
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 1
+webview.asm
+
+
+
+      1					 .486p
+      2	00000000			 model flat
+      3					 ideal
+      4
+      5		  =0000			 vga=0
+      6		  =0001			 vga=1
+      7
+      8					 if vga
+      9					 ; 640*480
+     10		  =0280			   Ix=640/1
+     11		  =01E0			   Iy=480/1
+     12		  =0140			   Ox=Ix/2
+     13		  =00F0			   Oy=Iy/2
+     14					 else
+     15					 ; 320*240
+     16					   Ix=640/2
+     17					   Iy=480/2
+     18					   Ox=Ix/1
+     19					   Oy=Iy/1
+     20					 endif
+     21
+     22					 extrn DosBeep:near
+     23					 extrn DosClose:near
+     24					 extrn DevCloseDC:near
+     25					 extrn DosCreateThread:near
+     26					 extrn DosExit:near
+     27					 extrn DosFreeMem:near
+     28					 extrn DosOpen:near
+     29					 extrn DevOpenDC:near
+     30					 extrn DosSetPriority:near
+     31					 extrn DosSleep:near
+     32					 extrn DosSuspendThread:near
+     33					 extrn DosWrite:near
+     34
+     35					 extrn GpiBitBlt:near
+     36					 extrn GpiCreateBitmap:near
+     37					 extrn GpiCreatePS:near
+     38					 extrn GpiDeleteBitmap:near
+     39					 extrn GpiDestroyPS:near
+     40					 extrn GpiSetBitmap:near
+     41					 extrn GpiSetBitmapBits:near
+     42
+     43					 extrn RexxStart:near
+     44
+     45					 extrn WinBeginPaint:near
+     46					 extrn WinCreateMsgQueue:near
+     47					 extrn WinCreateStdWindow:near
+     48					 extrn WinCreateWindow:near
+     49					 extrn WinDefWindowProc:near
+     50					 extrn WinDestroyMsgQueue:near
+     51					 extrn WinDestroyWindow:near
+     52					 extrn WinDispatchMsg:near
+     53					 extrn WinEndPaint:near
+     54					 extrn WinGetMsg:near
+     55					 extrn WinInitialize:near
+     56					 extrn WinInvalidateRect:near
+     57					 extrn WinLoadString:near
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 2
+webview.asm
+
+
+
+     58					 extrn WinMessageBox:near
+     59					 extrn WinPostMsg:near
+     60					 extrn WinPostQueueMsg:near
+     61					 extrn WinQuerySysValue:near
+     62					 extrn WinRegisterClass:near
+     63					 extrn WinSetActiveWindow:near
+     64					 extrn WinSetWindowPos:near
+     65					 extrn WinSubclassWindow:near
+     66					 extrn WinTerminate:near
+     67
+     68					 extrn connect:near
+     69					 extrn recv:near
+     70					 extrn send:near
+     71					 extrn soclose:near
+     72					 extrn socket:near
+     73
+     74	00000000			 stack 8192
+     75
+     76					 include 'webview.inc'
+1    77					 macro qTable qTableRow,qf0,qf1,qf2,qf3,qf4,qf5,qf6,qf7
+1    78					 qTableRow&0=qf0
+1    79					 qTableRow&1=qf1
+1    80					 qTableRow&2=qf2
+1    81					 qTableRow&3=qf3
+1    82					 qTableRow&4=qf4
+1    83					 qTableRow&5=qf5
+1    84					 qTableRow&6=qf6
+1    85					 qTableRow&7=qf7
+1    86					 endm
+1    87
+1    88					 ; chrominance - quantization factors
+1    89					 qTable	c0,012,020,030,040,084,084,084,084
+2    90		  =000C			 c00=012
+2    91		  =0014			 c01=020
+2    92		  =001E			 c02=030
+2    93		  =0028			 c03=040
+2    94		  =0054			 c04=084
+2    95		  =0054			 c05=084
+2    96		  =0054			 c06=084
+2    97		  =0054			 c07=084
+1    98					 qTable	c1,020,032,042,054,084,084,084,084
+2    99		  =0014			 c10=020
+2   100		  =0020			 c11=032
+2   101		  =002A			 c12=042
+2   102		  =0036			 c13=054
+2   103		  =0054			 c14=084
+2   104		  =0054			 c15=084
+2   105		  =0054			 c16=084
+2   106		  =0054			 c17=084
+1   107					 qTable	c2,030,042,056,066,084,084,084,084
+2   108		  =001E			 c20=030
+2   109		  =002A			 c21=042
+2   110		  =0038			 c22=056
+2   111		  =0042			 c23=066
+2   112		  =0054			 c24=084
+2   113		  =0054			 c25=084
+2   114		  =0054			 c26=084
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 3
+webview.asm
+
+
+
+2   115		  =0054			 c27=084
+1   116					 qTable	c3,040,054,066,084,084,084,084,084
+2   117		  =0028			 c30=040
+2   118		  =0036			 c31=054
+2   119		  =0042			 c32=066
+2   120		  =0054			 c33=084
+2   121		  =0054			 c34=084
+2   122		  =0054			 c35=084
+2   123		  =0054			 c36=084
+2   124		  =0054			 c37=084
+1   125					 qTable	c4,084,084,084,084,084,084,084,084
+2   126		  =0054			 c40=084
+2   127		  =0054			 c41=084
+2   128		  =0054			 c42=084
+2   129		  =0054			 c43=084
+2   130		  =0054			 c44=084
+2   131		  =0054			 c45=084
+2   132		  =0054			 c46=084
+2   133		  =0054			 c47=084
+1   134					 qTable	c5,084,084,084,084,084,084,084,084
+2   135		  =0054			 c50=084
+2   136		  =0054			 c51=084
+2   137		  =0054			 c52=084
+2   138		  =0054			 c53=084
+2   139		  =0054			 c54=084
+2   140		  =0054			 c55=084
+2   141		  =0054			 c56=084
+2   142		  =0054			 c57=084
+1   143					 qTable	c6,084,084,084,084,084,084,084,084
+2   144		  =0054			 c60=084
+2   145		  =0054			 c61=084
+2   146		  =0054			 c62=084
+2   147		  =0054			 c63=084
+2   148		  =0054			 c64=084
+2   149		  =0054			 c65=084
+2   150		  =0054			 c66=084
+2   151		  =0054			 c67=084
+1   152					 qTable	c7,084,084,084,084,084,084,084,084
+2   153		  =0054			 c70=084
+2   154		  =0054			 c71=084
+2   155		  =0054			 c72=084
+2   156		  =0054			 c73=084
+2   157		  =0054			 c74=084
+2   158		  =0054			 c75=084
+2   159		  =0054			 c76=084
+2   160		  =0054			 c77=084
+1   161
+1   162					 ; luminance - quantization factors
+1   163					 qTable	y0,008,010,010,010,011,013,015,018
+2   164		  =0008			 y00=008
+2   165		  =000A			 y01=010
+2   166		  =000A			 y02=010
+2   167		  =000A			 y03=010
+2   168		  =000B			 y04=011
+2   169		  =000D			 y05=013
+2   170		  =000F			 y06=015
+2   171		  =0012			 y07=018
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 4
+webview.asm
+
+
+
+1   172					 qTable	y1,010,014,014,014,014,014,014,015
+2   173		  =000A			 y10=010
+2   174		  =000E			 y11=014
+2   175		  =000E			 y12=014
+2   176		  =000E			 y13=014
+2   177		  =000E			 y14=014
+2   178		  =000E			 y15=014
+2   179		  =000E			 y16=014
+2   180		  =000F			 y17=015
+1   181					 qTable	y2,010,014,014,015,017,019,022,026
+2   182		  =000A			 y20=010
+2   183		  =000E			 y21=014
+2   184		  =000E			 y22=014
+2   185		  =000F			 y23=015
+2   186		  =0011			 y24=017
+2   187		  =0013			 y25=019
+2   188		  =0016			 y26=022
+2   189		  =001A			 y27=026
+1   190					 qTable	y3,010,014,015,016,018,021,024,028
+2   191		  =000A			 y30=010
+2   192		  =000E			 y31=014
+2   193		  =000F			 y32=015
+2   194		  =0010			 y33=016
+2   195		  =0012			 y34=018
+2   196		  =0015			 y35=021
+2   197		  =0018			 y36=024
+2   198		  =001C			 y37=028
+1   199					 qTable	y4,011,014,017,018,020,022,026,030
+2   200		  =000B			 y40=011
+2   201		  =000E			 y41=014
+2   202		  =0011			 y42=017
+2   203		  =0012			 y43=018
+2   204		  =0014			 y44=020
+2   205		  =0016			 y45=022
+2   206		  =001A			 y46=026
+2   207		  =001E			 y47=030
+1   208					 qTable	y5,013,014,019,021,022,026,029,034
+2   209		  =000D			 y50=013
+2   210		  =000E			 y51=014
+2   211		  =0013			 y52=019
+2   212		  =0015			 y53=021
+2   213		  =0016			 y54=022
+2   214		  =001A			 y55=026
+2   215		  =001D			 y56=029
+2   216		  =0022			 y57=034
+1   217					 qTable	y6,015,014,022,024,026,029,033,038
+2   218		  =000F			 y60=015
+2   219		  =000E			 y61=014
+2   220		  =0016			 y62=022
+2   221		  =0018			 y63=024
+2   222		  =001A			 y64=026
+2   223		  =001D			 y65=029
+2   224		  =0021			 y66=033
+2   225		  =0026			 y67=038
+1   226					 qTable	y7,018,015,026,028,030,034,038,042
+2   227		  =0012			 y70=018
+2   228		  =000F			 y71=015
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 5
+webview.asm
+
+
+
+2   229		  =001A			 y72=026
+2   230		  =001C			 y73=028
+2   231		  =001E			 y74=030
+2   232		  =0022			 y75=034
+2   233		  =0026			 y76=038
+2   234		  =002A			 y77=042
+1   235
+1   236					 ; precalculated cos(a*pi/16)*2E30
+1   237		  =40000000		 cos0a = 1073741824 ; cos(0pi/16)*2E30
+1   238		  =3EC52F9F		 cos1a = 1053110175 ; cos(1pi/16)*2E30
+1   239		  =3B20D79D		 cos2a = 0992008093 ; cos(2pi/16)*2E30
+1   240		  =3536CC51		 cos3a = 0892783697 ; cos(3pi/16)*2E30
+1   241		  =2D413CCC		 cos4a = 0759250124 ; cos(4pi/16)*2E30
+1   242		  =238E7673		 cos5a = 0596538995 ; cos(5pi/16)*2E30
+1   243		  =187DE2A6		 cos6a = 0410903206 ; cos(6pi/16)*2E30
+1   244		  =0C7C5C1E		 cos7a = 0209476638 ; cos(7pi/16)*2E30
+1   245
+1   246	00002000			 udataseg
+1   247	00000000  0100*(????????)	 mcu dd	4*64 dup(?)
+1   248
+1   249					 ; precalculated aanfdct coefficients
+1   250		  =2D413CCC		 a1 = cos4a ; cos(4pi/16)*2E30
+1   251		  =22A2F4F7		 a2 = cos2a-cos6a ; (cos(2pi/16)-cos(6pi/16))*2E30
+1   252		  =2D413CCC		 a3 = cos4a ; cos(4pi/16)*2E30
+1   253		  =539EBA43		 a4 = cos2a+cos6a ; (cos(2pi/16)+cos(6pi/16))*2E30
+1   254		  =187DE2A6		 a5 = cos6a ; cos(6pi/16)*2E30
+1   255
+1   256					 ; aanfdct algorithm (29 additions and 5 multiplications)
+1   257					 ; Y.Arai, T.Agui, M.Nakajima. "A Fast DCT-SQ Scheme for Images".
+1   258					 ; Transactions	of IEICE, vol. E71, nø.	11, 1988, pp. 1095-1097.
+1   259					 ;    step1    ,  step2	,  step3 ,  step4 ,  step5 ,  step6
+1   260					 ; b0=m[0]+m[7],c0=b0+b3,d2=c2+c3,e2=d2*a1,	   ,m[0]=c0+c1
+1   261					 ; b7=m[0]-m[7],c3=b0-b3,	 ,	  ,	   ,m[4]=c0-c1
+1   262					 ; b1=m[1]+m[6],c1=b1+b2,	 ,	  ,	   ,m[2]=c3+e2
+1   263					 ; b6=m[1]-m[6],c2=b1-b2,	 ,	  ,	   ,m[6]=c3-e2
+1   264					 ; b2=m[2]+m[5],c4=b4+b5,d8=c4-c6,e4=c4*a2,f4=e4+e8,m[5]=f7+f4
+1   265					 ; b5=m[2]-m[5],c5=b5+b6,	 ,e5=c5*a3,f6=e6+e8,m[3]=f7-f4
+1   266					 ; b3=m[3]+m[4],c6=b6+b7,	 ,e6=c6*a4,f5=b7+e5,m[1]=f5+f6
+1   267					 ; b4=m[3]-m[4],	,	 ,e8=d8*a5,f7=b7-e5,m[7]=f5-f6
+1   268					 ;    step1    ,  step2	,  step3 ,  step4 ,  step5 ,  step6
+1   269					 ; derived from	Stefan Kuhr, thesis2side.pdf, figure 3.10
+1   270
+1   271	00000400			 codeseg
+1   272	00000000			 proc aanfdct near
+1   273					 ; point to first matrix
+1   274	00000000  2B ED			   sub ebp,ebp ; offset
+1   275	00000002			 label NextColsPass near
+1   276					 ; b3=m[3]+m[4],b4=m[3]-m[4]
+1   277	00000002  8B 95	00000060r	   mov edx,[mcu+ebp+3*8*4]
+1   278	00000008  8B BD	00000080r	   mov edi,[mcu+ebp+4*8*4]
+1   279	0000000E  8D 34	3A		   lea esi,[edx+edi] ; b3
+1   280	00000011  2B D7			   sub edx,edi ; b4
+1   281	00000013  56			   push	esi ; b3
+1   282					 ; b2=m[2]+m[5],b5=m[2]-m[5]
+1   283	00000014  8B 8D	00000040r	   mov ecx,[mcu+ebp+2*8*4]
+1   284	0000001A  8B BD	000000A0r	   mov edi,[mcu+ebp+5*8*4]
+1   285	00000020  8D 34	39		   lea esi,[ecx+edi] ; b2
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 6
+webview.asm
+
+
+
+1   286	00000023  2B CF			   sub ecx,edi ; b5
+1   287	00000025  56			   push	esi ; b2
+1   288					 ; b1=m[1]+m[6],b6=m[1]-m[6]
+1   289	00000026  8B 9D	00000020r	   mov ebx,[mcu+ebp+1*8*4]
+1   290	0000002C  8B BD	000000C0r	   mov edi,[mcu+ebp+6*8*4]
+1   291	00000032  8D 34	3B		   lea esi,[ebx+edi] ; b1
+1   292	00000035  2B DF			   sub ebx,edi ; b6
+1   293	00000037  56			   push	esi ; b1
+1   294					 ; b0=m[0]+m[7],b7=m[0]-m[7]
+1   295	00000038  8B 85	00000000r	   mov eax,[mcu+ebp+0*8*4]
+1   296	0000003E  8B BD	000000E0r	   mov edi,[mcu+ebp+7*8*4]
+1   297	00000044  8D 34	38		   lea esi,[eax+edi] ; b0
+1   298	00000047  2B C7			   sub eax,edi ; b7
+1   299	00000049  56			   push	esi ; b0
+1   300					 ; c5=b6+b5,c4=b4+b5,c6=b6+b7
+1   301	0000004A  8D 34	0B		   lea esi,[ebx+ecx] ; c5
+1   302	0000004D  8D 0C	0A		   lea ecx,[edx+ecx] ; c4
+1   303	00000050  8D 1C	03		   lea ebx,[ebx+eax] ; c6
+1   304	00000053  8B D1			   mov edx,ecx ; c4
+1   305	00000055  50			   push	eax ; b7
+1   306					 ; d8=c4-c6,e8=d8*a5
+1   307	00000056  2B D3			   sub edx,ebx ; d8
+1   308	00000058  B8 187DE2A6		   mov eax,a5 ;	a5
+1   309	0000005D  F7 EA			   imul	edx ; e8/2E2
+1   310	0000005F  0F A4	C2 02		   shld	edx,eax,2 ; e8
+1   311	00000063  8B FA			   mov edi,edx ; e8
+1   312					 ; e4=c4*a2,f4=e4+e8
+1   313	00000065  B8 22A2F4F7		   mov eax,a2 ;	a2
+1   314	0000006A  F7 E9			   imul	ecx ; e4/2E2
+1   315	0000006C  0F A4	C2 02		   shld	edx,eax,2 ; e4
+1   316	00000070  8D 0C	3A		   lea ecx,[edx+edi] ; f4
+1   317					 ; e6=c6*a4,f6=e6+e8
+1   318	00000073  B8 539EBA43		   mov eax,a4 ;	a4
+1   319	00000078  F7 EB			   imul	ebx ; e6/2E2
+1   320	0000007A  0F A4	C2 02		   shld	edx,eax,2 ; e6
+1   321	0000007E  8D 1C	3A		   lea ebx,[edx+edi] ; f6
+1   322					 ; e5=c5*a3,f5=b7+e5,f7=b7-e5
+1   323	00000081  B8 2D413CCC		   mov eax,a3 ;	a3
+1   324	00000086  F7 EE			   imul	esi ; e5/2E2
+1   325	00000088  0F A4	C2 02		   shld	edx,eax,2 ; e5
+1   326	0000008C  5E			   pop esi ; b7
+1   327	0000008D  8D 04	16		   lea eax,[esi+edx] ; f5
+1   328	00000090  2B F2			   sub esi,edx ; f7
+1   329					 ; m[5]=f7+f4,m[3]=f7-f4
+1   330	00000092  8D 14	0E		   lea edx,[esi+ecx] ; m[5]
+1   331	00000095  2B F1			   sub esi,ecx ; m[3]
+1   332	00000097  89 95	000000A0r	   mov [mcu+ebp+5*8*4],edx
+1   333	0000009D  89 B5	00000060r	   mov [mcu+ebp+3*8*4],esi
+1   334	000000A3  5E			   pop esi ; b0
+1   335	000000A4  5A			   pop edx ; b1
+1   336					 ; m[1]=f5+f6,m[7]=f5-f6
+1   337	000000A5  8D 0C	18		   lea ecx,[eax+ebx] ; m[1]
+1   338	000000A8  2B C3			   sub eax,ebx ; m[7]
+1   339	000000AA  89 8D	00000020r	   mov [mcu+ebp+1*8*4],ecx
+1   340	000000B0  89 85	000000E0r	   mov [mcu+ebp+7*8*4],eax
+1   341	000000B6  59			   pop ecx ; b2
+1   342	000000B7  5B			   pop ebx ; b3
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 7
+webview.asm
+
+
+
+1   343					 ; c0=b0+b3,c3=b0-b3
+1   344	000000B8  8D 3C	1E		   lea edi,[esi+ebx] ; c0
+1   345	000000BB  2B F3			   sub esi,ebx ; c3
+1   346					 ; c1=b1+b2,c2=b1-b2
+1   347	000000BD  8D 1C	0A		   lea ebx,[edx+ecx] ; c1
+1   348	000000C0  2B D1			   sub edx,ecx ; c2
+1   349					 ; d2=c2+c3,e2=d2*a1
+1   350	000000C2  03 D6			   add edx,esi ; d2
+1   351	000000C4  B8 2D413CCC		   mov eax,a1 ;	a1
+1   352	000000C9  F7 EA			   imul	edx ; e2/2E2
+1   353	000000CB  0F A4	C2 02		   shld	edx,eax,2 ; e2
+1   354					 ; m[2]=c3+e2,m[6]=c3-e2
+1   355	000000CF  8D 0C	16		   lea ecx,[esi+edx] ; m[2]
+1   356	000000D2  2B F2			   sub esi,edx ; m[6]
+1   357	000000D4  89 8D	00000040r	   mov [mcu+ebp+2*8*4],ecx
+1   358	000000DA  89 B5	000000C0r	   mov [mcu+ebp+6*8*4],esi
+1   359					 ; m[0]=c0+c1,m[4]=c0-c1
+1   360	000000E0  8D 04	1F		   lea eax,[edi+ebx] ; m[0]
+1   361	000000E3  2B FB			   sub edi,ebx ; m[4]
+1   362	000000E5  89 85	00000000r	   mov [mcu+ebp+0*8*4],eax
+1   363	000000EB  89 BD	00000080r	   mov [mcu+ebp+4*8*4],edi
+1   364					 ; bump	to next	matrix column
+1   365	000000F1  8D 6D	04		   lea ebp,[ebp+1*4] ; offset
+1   366	000000F4  F7 C5	0000001C	   test	ebp,01Ch ; eight
+1   367	000000FA  0F 85	FFFFFF02	   jnz NextColsPass
+1   368					 ; point to start of matrix
+1   369	00000100  8D 6D	E0		   lea ebp,[ebp-8*4] ; offset
+1   370	00000103			 label NextRowsPass near
+1   371					 ; b3=m[3]+m[4],b4=m[3]-m[4]
+1   372	00000103  8B 95	0000000Cr	   mov edx,[mcu+ebp+3*1*4]
+1   373	00000109  8B BD	00000010r	   mov edi,[mcu+ebp+4*1*4]
+1   374	0000010F  8D 34	3A		   lea esi,[edx+edi] ; b3
+1   375	00000112  2B D7			   sub edx,edi ; b4
+1   376	00000114  56			   push	esi ; b3
+1   377					 ; b2=m[2]+m[5],b5=m[2]-m[5]
+1   378	00000115  8B 8D	00000008r	   mov ecx,[mcu+ebp+2*1*4]
+1   379	0000011B  8B BD	00000014r	   mov edi,[mcu+ebp+5*1*4]
+1   380	00000121  8D 34	39		   lea esi,[ecx+edi] ; b2
+1   381	00000124  2B CF			   sub ecx,edi ; b5
+1   382	00000126  56			   push	esi ; b2
+1   383					 ; b1=m[1]+m[6],b6=m[1]-m[6]
+1   384	00000127  8B 9D	00000004r	   mov ebx,[mcu+ebp+1*1*4]
+1   385	0000012D  8B BD	00000018r	   mov edi,[mcu+ebp+6*1*4]
+1   386	00000133  8D 34	3B		   lea esi,[ebx+edi] ; b1
+1   387	00000136  2B DF			   sub ebx,edi ; b6
+1   388	00000138  56			   push	esi ; b1
+1   389					 ; b0=m[0]+m[7],b7=m[0]-m[7]
+1   390	00000139  8B 85	00000000r	   mov eax,[mcu+ebp+0*1*4]
+1   391	0000013F  8B BD	0000001Cr	   mov edi,[mcu+ebp+7*1*4]
+1   392	00000145  8D 34	38		   lea esi,[eax+edi] ; b0
+1   393	00000148  2B C7			   sub eax,edi ; b7
+1   394	0000014A  56			   push	esi ; b0
+1   395					 ; c5=b6+b5,c4=b4+b5,c6=b6+b7
+1   396	0000014B  8D 34	0B		   lea esi,[ebx+ecx] ; c5
+1   397	0000014E  8D 0C	0A		   lea ecx,[edx+ecx] ; c4
+1   398	00000151  8D 1C	03		   lea ebx,[ebx+eax] ; c6
+1   399	00000154  8B D1			   mov edx,ecx ; c4
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 8
+webview.asm
+
+
+
+1   400	00000156  50			   push	eax ; b7
+1   401					 ; d8=c4-c6,e8=d8*a5
+1   402	00000157  2B D3			   sub edx,ebx ; d8
+1   403	00000159  B8 187DE2A6		   mov eax,a5 ;	a5
+1   404	0000015E  F7 EA			   imul	edx ; e8/2E2
+1   405	00000160  0F A4	C2 02		   shld	edx,eax,2 ; e8
+1   406	00000164  8B FA			   mov edi,edx ; e8
+1   407					 ; e4=c4*a2,f4=e4+e8
+1   408	00000166  B8 22A2F4F7		   mov eax,a2 ;	a2
+1   409	0000016B  F7 E9			   imul	ecx ; e4/2E2
+1   410	0000016D  0F A4	C2 02		   shld	edx,eax,2 ; e4
+1   411	00000171  8D 0C	3A		   lea ecx,[edx+edi] ; f4
+1   412					 ; e6=c6*a4,f6=e6+e8
+1   413	00000174  B8 539EBA43		   mov eax,a4 ;	a4
+1   414	00000179  F7 EB			   imul	ebx ; e6/2E2
+1   415	0000017B  0F A4	C2 02		   shld	edx,eax,2 ; e6
+1   416	0000017F  8D 1C	3A		   lea ebx,[edx+edi] ; f6
+1   417					 ; e5=c5*a3,f5=b7+e5,f7=b7-e5
+1   418	00000182  B8 2D413CCC		   mov eax,a3 ;	a3
+1   419	00000187  F7 EE			   imul	esi ; e5/2E2
+1   420	00000189  0F A4	C2 02		   shld	edx,eax,2 ; e5
+1   421	0000018D  5E			   pop esi ; b7
+1   422	0000018E  8D 04	16		   lea eax,[esi+edx] ; f5
+1   423	00000191  2B F2			   sub esi,edx ; f7
+1   424					 ; m[5]=f7+f4,m[3]=f7-f4
+1   425	00000193  8D 14	0E		   lea edx,[esi+ecx] ; m[5]
+1   426	00000196  2B F1			   sub esi,ecx ; m[3]
+1   427	00000198  89 95	00000014r	   mov [mcu+ebp+5*1*4],edx
+1   428	0000019E  89 B5	0000000Cr	   mov [mcu+ebp+3*1*4],esi
+1   429	000001A4  5E			   pop esi ; b0
+1   430	000001A5  5A			   pop edx ; b1
+1   431					 ; m[1]=f5+f6,m[7]=f5-f6
+1   432	000001A6  8D 0C	18		   lea ecx,[eax+ebx] ; m[1]
+1   433	000001A9  2B C3			   sub eax,ebx ; m[7]
+1   434	000001AB  89 8D	00000004r	   mov [mcu+ebp+1*1*4],ecx
+1   435	000001B1  89 85	0000001Cr	   mov [mcu+ebp+7*1*4],eax
+1   436	000001B7  59			   pop ecx ; b2
+1   437	000001B8  5B			   pop ebx ; b3
+1   438					 ; c0=b0+b3,c3=b0-b3
+1   439	000001B9  8D 3C	1E		   lea edi,[esi+ebx] ; c0
+1   440	000001BC  2B F3			   sub esi,ebx ; c3
+1   441					 ; c1=b1+b2,c2=b1-b2
+1   442	000001BE  8D 1C	0A		   lea ebx,[edx+ecx] ; c1
+1   443	000001C1  2B D1			   sub edx,ecx ; c2
+1   444					 ; d2=c2+c3,e2=d2*a1
+1   445	000001C3  03 D6			   add edx,esi ; d2
+1   446	000001C5  B8 2D413CCC		   mov eax,a1 ;	a1
+1   447	000001CA  F7 EA			   imul	edx ; e2/2E2
+1   448	000001CC  0F A4	C2 02		   shld	edx,eax,2 ; e2
+1   449					 ; m[2]=c3+e2,m[6]=c3-e2
+1   450	000001D0  8D 0C	16		   lea ecx,[esi+edx] ; m[2]
+1   451	000001D3  2B F2			   sub esi,edx ; m[6]
+1   452	000001D5  89 8D	00000008r	   mov [mcu+ebp+2*1*4],ecx
+1   453	000001DB  89 B5	00000018r	   mov [mcu+ebp+6*1*4],esi
+1   454					 ; m[0]=c0+c1,m[4]=c0-c1
+1   455	000001E1  8D 04	1F		   lea eax,[edi+ebx] ; m[0]
+1   456	000001E4  2B FB			   sub edi,ebx ; m[4]
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 9
+webview.asm
+
+
+
+1   457	000001E6  89 85	00000000r	   mov [mcu+ebp+0*1*4],eax
+1   458	000001EC  89 BD	00000010r	   mov [mcu+ebp+4*1*4],edi
+1   459					 ; bump	to next	matrix row
+1   460	000001F2  8D 6D	20		   lea ebp,[ebp+8*4] ; offset
+1   461	000001F5  F7 C5	000000E0	   test	ebp,0E0h ; eight
+1   462	000001FB  0F 85	FFFFFF02	   jnz NextRowsPass
+1   463					 ; start next matrix
+1   464	00000201  81 FD	00000400	   cmp ebp,400h	; done
+1   465	00000207  0F 82	FFFFFDF5	   jb NextColsPass
+1   466	0000020D  C3			   ret ; return
+1   467	0000020E			 endp aanfdct
+1   468
+1   469					 ; precalculated aanidct coefficients
+1   470		  =2D413CCC		 s1 = cos4a ; cos(4pi/16)*2E30
+1   471		  =539EBA43		 s2 = cos2a+cos6a ; (cos(2pi/16)+cos(6pi/16))*2E30
+1   472		  =2D413CCC		 s3 = cos4a ; cos(4pi/16)*2E30
+1   473		  =22A2F4F7		 s4 = cos2a-cos6a ; (cos(2pi/16)-cos(6pi/16))*2E30
+1   474		  =3B20D79D		 s5 = cos2a ; cos(2pi/16)*2E30
+1   475
+1   476					 ; aanidct algorithm (29 additions and 5 multiplications)
+1   477					 ; Y.Arai, T.Agui, M.Nakajima. "A Fast DCT-SQ Scheme for Images".
+1   478					 ; Transactions	of IEICE, vol. E71, nø.	11, 1988, pp. 1095-1097.
+1   479					 ;    step1    ,  step2	,  step3 ,  step4 ,  step5 ,  step6
+1   480					 ; b0=m[0]+m[4],	,d2=b2*s1,e2=d2-b6,f0=b0+b6,m[0]=f0+c3
+1   481					 ; b4=m[0]-m[4],	,	 ,	  ,f6=b0-b6,m[7]=f0-c3
+1   482					 ; b6=m[2]+m[6],	,	 ,	  ,f4=b4+e2,m[1]=f4+f7
+1   483					 ; b2=m[2]-m[6],	,	 ,	  ,f2=b4-e2,m[6]=f4-f7
+1   484					 ; b3=m[5]+m[3],c3=b1+b3,d5=b5*s2,e5=d8-d7,f7=e7-c3,m[2]=f2+f1
+1   485					 ; b5=m[5]-m[3],c1=b1-b3,d1=c1*s3,e7=d8-d5,f1=d1-f7,m[5]=f2-f1
+1   486					 ; b1=m[1]+m[7],c8=b5+b7,d7=b7*s4,	  ,f5=d5-f1,m[3]=f6+f5
+1   487					 ; b7=m[1]-m[7],	,d8=c8*s5,	  ,	   ,m[4]=f6-f5
+1   488					 ;    step1    ,  step2	,  step3 ,  step4 ,  step5 ,  step6
+1   489					 ; derived from	Stefan Kuhr, thesis2side.pdf, figure 3.11
+1   490
+1   491	0000020E			 codeseg
+1   492	0000020E			 proc aanidct near
+1   493					 ; point to first matrix
+1   494	0000020E  2B ED			   sub ebp,ebp ; offset
+1   495	00000210			 label NextPassCols near
+1   496					 ; b0=m[0]+m[4],b4=m[0]-m[4]
+1   497	00000210  8B 9D	00000000r	   mov ebx,[mcu+ebp+0*8*4]
+1   498	00000216  8B 85	00000080r	   mov eax,[mcu+ebp+4*8*4]
+1   499	0000021C  8D 3C	03		   lea edi,[ebx+eax] ; b0
+1   500	0000021F  2B D8			   sub ebx,eax ; b4
+1   501					 ; b6=m[2]+m[6],b2=m[2]-m[6]
+1   502	00000221  8B 8D	00000040r	   mov ecx,[mcu+ebp+2*8*4]
+1   503	00000227  8B 85	000000C0r	   mov eax,[mcu+ebp+6*8*4]
+1   504	0000022D  8D 34	01		   lea esi,[ecx+eax] ; b6
+1   505	00000230  2B C8			   sub ecx,eax ; b2
+1   506					 ; d2=b2*s1;e2=d2-b6
+1   507	00000232  B8 2D413CCC		   mov eax,s1 ;	s1
+1   508	00000237  F7 E9			   imul	ecx ; d2/2E4
+1   509	00000239  0F A4	C2 03		   shld	edx,eax,3 ; d2
+1   510	0000023D  2B D6			   sub edx,esi ; e2
+1   511					 ; f0=b0+b6,f6=b0-b6
+1   512	0000023F  8D 0C	37		   lea ecx,[edi+esi] ; f0
+1   513	00000242  2B FE			   sub edi,esi ; f6
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 10
+webview.asm
+
+
+
+1   514					 ; f4=b4+e2,f2=b4-e2
+1   515	00000244  8D 04	13		   lea eax,[ebx+edx] ; f4
+1   516	00000247  2B DA			   sub ebx,edx ; f2
+1   517	00000249  57			   push	edi ; f6
+1   518	0000024A  53			   push	ebx ; f2
+1   519	0000024B  50			   push	eax ; f4
+1   520	0000024C  51			   push	ecx ; f0
+1   521					 ; b3=m[5]+m[3],b5=m[5]-m[3]
+1   522	0000024D  8B 9D	000000A0r	   mov ebx,[mcu+ebp+5*8*4]
+1   523	00000253  8B 85	00000060r	   mov eax,[mcu+ebp+3*8*4]
+1   524	00000259  8D 3C	03		   lea edi,[ebx+eax] ; b3
+1   525	0000025C  2B D8			   sub ebx,eax ; b5
+1   526					 ; b1=m[1]+m[7],b7=m[1]-m[7]
+1   527	0000025E  8B 8D	00000020r	   mov ecx,[mcu+ebp+1*8*4]
+1   528	00000264  8B 85	000000E0r	   mov eax,[mcu+ebp+7*8*4]
+1   529	0000026A  8D 34	01		   lea esi,[ecx+eax] ; b1
+1   530	0000026D  2B C8			   sub ecx,eax ; b7
+1   531					 ; c3=b1+b3,c1=b1-b3
+1   532	0000026F  8D 04	3E		   lea eax,[esi+edi] ; c3
+1   533	00000272  2B F7			   sub esi,edi ; c1
+1   534	00000274  50			   push	eax ; c3
+1   535					 ; c8=b5+b7,d8=c8*s5
+1   536	00000275  8D 14	0B		   lea edx,[ebx+ecx] ; c8
+1   537	00000278  B8 3B20D79D		   mov eax,s5 ;	s5
+1   538	0000027D  F7 EA			   imul	edx ; d8/2E4
+1   539	0000027F  0F A4	C2 03		   shld	edx,eax,3 ; d8
+1   540	00000283  8B FA			   mov edi,edx ; d8
+1   541					 ; d7=b7*s4,e5=d8-d7
+1   542	00000285  B8 22A2F4F7		   mov eax,s4 ;	s4
+1   543	0000028A  F7 E9			   imul	ecx ; d7/2E4
+1   544	0000028C  0F A4	C2 03		   shld	edx,eax,3 ; d7
+1   545	00000290  8B CF			   mov ecx,edi ; d8
+1   546	00000292  2B FA			   sub edi,edx ; e5
+1   547					 ; d5=b5*s2,e7=d8-d5
+1   548	00000294  B8 539EBA43		   mov eax,s2 ;	s2
+1   549	00000299  F7 EB			   imul	ebx ; d5/2E4
+1   550	0000029B  0F A4	C2 03		   shld	edx,eax,3 ; d5
+1   551	0000029F  2B CA			   sub ecx,edx ; e7
+1   552					 ; d1=c1*s3,f7=e7-c3
+1   553	000002A1  B8 2D413CCC		   mov eax,s3 ;	s3
+1   554	000002A6  F7 EE			   imul	esi ; c1/2E4
+1   555	000002A8  0F A4	C2 03		   shld	edx,eax,3 ; d1
+1   556	000002AC  5B			   pop ebx ; c3
+1   557	000002AD  2B CB			   sub ecx,ebx ; f7
+1   558					 ; f1=d1-f7,f5=e5-f1
+1   559	000002AF  2B D1			   sub edx,ecx ; f1
+1   560	000002B1  2B FA			   sub edi,edx ; f5
+1   561					 ; m[0]=f0+c3,m[7]=f0-c3
+1   562	000002B3  5E			   pop esi ; f0
+1   563	000002B4  8D 04	1E		   lea eax,[esi+ebx] ; m[0]
+1   564	000002B7  2B F3			   sub esi,ebx ; m[7]
+1   565	000002B9  89 85	00000000r	   mov [mcu+ebp+0*8*4],eax
+1   566	000002BF  89 B5	000000E0r	   mov [mcu+ebp+7*8*4],esi
+1   567					 ; m[1]=f4+f7,m[6]=f4-f7
+1   568	000002C5  5E			   pop esi ; f4
+1   569	000002C6  8D 04	0E		   lea eax,[esi+ecx] ; m[1]
+1   570	000002C9  2B F1			   sub esi,ecx ; m[7]
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 11
+webview.asm
+
+
+
+1   571	000002CB  89 85	00000020r	   mov [mcu+ebp+1*8*4],eax
+1   572	000002D1  89 B5	000000C0r	   mov [mcu+ebp+6*8*4],esi
+1   573					 ; m[2]=f2+f1,m[5]=f2-f1
+1   574	000002D7  5E			   pop esi ; f2
+1   575	000002D8  8D 04	16		   lea eax,[esi+edx] ; m[2]
+1   576	000002DB  2B F2			   sub esi,edx ; m[5]
+1   577	000002DD  89 85	00000040r	   mov [mcu+ebp+2*8*4],eax
+1   578	000002E3  89 B5	000000A0r	   mov [mcu+ebp+5*8*4],esi
+1   579					 ; m[3]=f6+f5,m[4]=f6-f5
+1   580	000002E9  5E			   pop esi ; f6
+1   581	000002EA  8D 04	3E		   lea eax,[esi+edi] ; m[3]
+1   582	000002ED  2B F7			   sub esi,edi ; m[4]
+1   583	000002EF  89 85	00000060r	   mov [mcu+ebp+3*8*4],eax
+1   584	000002F5  89 B5	00000080r	   mov [mcu+ebp+4*8*4],esi
+1   585					 ; bump	to next	matrix column
+1   586	000002FB  8D 6D	04		   lea ebp,[ebp+1*4] ; offset
+1   587	000002FE  F7 C5	0000001C	   test	ebp,01Ch ; eight
+1   588	00000304  0F 85	FFFFFF06	   jnz NextPassCols
+1   589					 ; point to start of matrix
+1   590	0000030A  8D 6D	E0		   lea ebp,[ebp-8*4] ; offset
+1   591	0000030D			 label NextPassRows near
+1   592					 ; b0=m[0]+m[4],b4=m[0]-m[4]
+1   593	0000030D  8B 9D	00000000r	   mov ebx,[mcu+ebp+0*1*4]
+1   594	00000313  8B 85	00000010r	   mov eax,[mcu+ebp+4*1*4]
+1   595	00000319  8D 3C	03		   lea edi,[ebx+eax] ; b0
+1   596	0000031C  2B D8			   sub ebx,eax ; b4
+1   597					 ; b6=m[2]+m[6],b2=m[2]-m[6]
+1   598	0000031E  8B 8D	00000008r	   mov ecx,[mcu+ebp+2*1*4]
+1   599	00000324  8B 85	00000018r	   mov eax,[mcu+ebp+6*1*4]
+1   600	0000032A  8D 34	01		   lea esi,[ecx+eax] ; b6
+1   601	0000032D  2B C8			   sub ecx,eax ; b2
+1   602					 ; d2=b2*s1;e2=d2-b6
+1   603	0000032F  B8 2D413CCC		   mov eax,s1 ;	s1
+1   604	00000334  F7 E9			   imul	ecx ; d2/2E4
+1   605	00000336  0F A4	C2 03		   shld	edx,eax,3 ; d2
+1   606	0000033A  2B D6			   sub edx,esi ; e2
+1   607					 ; f0=b0+b6,f6=b0-b6
+1   608	0000033C  8D 0C	37		   lea ecx,[edi+esi] ; f0
+1   609	0000033F  2B FE			   sub edi,esi ; f6
+1   610					 ; f4=b4+e2,f2=b4-e2
+1   611	00000341  8D 04	13		   lea eax,[ebx+edx] ; f4
+1   612	00000344  2B DA			   sub ebx,edx ; f2
+1   613	00000346  57			   push	edi ; f6
+1   614	00000347  53			   push	ebx ; f2
+1   615	00000348  50			   push	eax ; f4
+1   616	00000349  51			   push	ecx ; f0
+1   617					 ; b3=m[5]+m[3],b5=m[5]-m[3]
+1   618	0000034A  8B 9D	00000014r	   mov ebx,[mcu+ebp+5*1*4]
+1   619	00000350  8B 85	0000000Cr	   mov eax,[mcu+ebp+3*1*4]
+1   620	00000356  8D 3C	03		   lea edi,[ebx+eax] ; b3
+1   621	00000359  2B D8			   sub ebx,eax ; b5
+1   622					 ; b1=m[1]+m[7],b7=m[1]-m[7]
+1   623	0000035B  8B 8D	00000004r	   mov ecx,[mcu+ebp+1*1*4]
+1   624	00000361  8B 85	0000001Cr	   mov eax,[mcu+ebp+7*1*4]
+1   625	00000367  8D 34	01		   lea esi,[ecx+eax] ; b1
+1   626	0000036A  2B C8			   sub ecx,eax ; b7
+1   627					 ; c3=b1+b3,c1=b1-b3
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 12
+webview.asm
+
+
+
+1   628	0000036C  8D 04	3E		   lea eax,[esi+edi] ; c3
+1   629	0000036F  2B F7			   sub esi,edi ; c1
+1   630	00000371  50			   push	eax ; c3
+1   631					 ; c8=b5+b7,d8=c8*s5
+1   632	00000372  8D 14	0B		   lea edx,[ebx+ecx] ; c8
+1   633	00000375  B8 3B20D79D		   mov eax,s5 ;	s5
+1   634	0000037A  F7 EA			   imul	edx ; d8/2E4
+1   635	0000037C  0F A4	C2 03		   shld	edx,eax,3 ; d8
+1   636	00000380  8B FA			   mov edi,edx ; d8
+1   637					 ; d7=b7*s4,e5=d8-d7
+1   638	00000382  B8 22A2F4F7		   mov eax,s4 ;	s4
+1   639	00000387  F7 E9			   imul	ecx ; d7/2E4
+1   640	00000389  0F A4	C2 03		   shld	edx,eax,3 ; d7
+1   641	0000038D  8B CF			   mov ecx,edi ; d8
+1   642	0000038F  2B FA			   sub edi,edx ; e5
+1   643					 ; d5=b5*s2,e7=d8-d5
+1   644	00000391  B8 539EBA43		   mov eax,s2 ;	s2
+1   645	00000396  F7 EB			   imul	ebx ; d5/2E4
+1   646	00000398  0F A4	C2 03		   shld	edx,eax,3 ; d5
+1   647	0000039C  2B CA			   sub ecx,edx ; e7
+1   648					 ; d1=c1*s3,f7=e7-c3
+1   649	0000039E  B8 2D413CCC		   mov eax,s3 ;	s3
+1   650	000003A3  F7 EE			   imul	esi ; c1/2E4
+1   651	000003A5  0F A4	C2 03		   shld	edx,eax,3 ; d1
+1   652	000003A9  5B			   pop ebx ; c3
+1   653	000003AA  2B CB			   sub ecx,ebx ; f7
+1   654					 ; f1=d1-f7,f5=e5-f1
+1   655	000003AC  2B D1			   sub edx,ecx ; f1
+1   656	000003AE  2B FA			   sub edi,edx ; f5
+1   657					 ; m[0]=f0+c3,m[7]=f0-c3
+1   658	000003B0  5E			   pop esi ; f0
+1   659	000003B1  8D 04	1E		   lea eax,[esi+ebx] ; m[0]
+1   660	000003B4  2B F3			   sub esi,ebx ; m[7]
+1   661	000003B6  89 85	00000000r	   mov [mcu+ebp+0*1*4],eax
+1   662	000003BC  89 B5	0000001Cr	   mov [mcu+ebp+7*1*4],esi
+1   663					 ; m[1]=f4+f7,m[6]=f4-f7
+1   664	000003C2  5E			   pop esi ; f4
+1   665	000003C3  8D 04	0E		   lea eax,[esi+ecx] ; m[1]
+1   666	000003C6  2B F1			   sub esi,ecx ; m[7]
+1   667	000003C8  89 85	00000004r	   mov [mcu+ebp+1*1*4],eax
+1   668	000003CE  89 B5	00000018r	   mov [mcu+ebp+6*1*4],esi
+1   669					 ; m[2]=f2+f1,m[5]=f2-f1
+1   670	000003D4  5E			   pop esi ; f2
+1   671	000003D5  8D 04	16		   lea eax,[esi+edx] ; m[2]
+1   672	000003D8  2B F2			   sub esi,edx ; m[5]
+1   673	000003DA  89 85	00000008r	   mov [mcu+ebp+2*1*4],eax
+1   674	000003E0  89 B5	00000014r	   mov [mcu+ebp+5*1*4],esi
+1   675					 ; m[3]=f6+f5,m[4]=f6-f5
+1   676	000003E6  5E			   pop esi ; f6
+1   677	000003E7  8D 04	3E		   lea eax,[esi+edi] ; m[3]
+1   678	000003EA  2B F7			   sub esi,edi ; m[4]
+1   679	000003EC  89 85	0000000Cr	   mov [mcu+ebp+3*1*4],eax
+1   680	000003F2  89 B5	00000010r	   mov [mcu+ebp+4*1*4],esi
+1   681					 ; bump	to next	matrix row
+1   682	000003F8  8D 6D	20		   lea ebp,[ebp+8*4] ; offset
+1   683	000003FB  F7 C5	000000E0	   test	ebp,0E0h ; eight
+1   684	00000401  0F 85	FFFFFF06	   jnz NextPassRows
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 13
+webview.asm
+
+
+
+1   685					 ; start next matrix
+1   686	00000407  81 FD	00000400	   cmp ebp,400h	; done
+1   687	0000040D  0F 82	FFFFFDFD	   jb NextPassCols
+1   688	00000413  C3			   ret ; return
+1   689	00000414			 endp aanidct
+1   690
+1   691					 ; aanfdct - quantization coefficients - 1st row
+1   692		  =08000000		 q00 = 0134217728 ; 2E26/(cos(4pi/16)*cos(4pi/16))
+1   693		  =05C48695		 q01 = 0096765589 ; 2E26/(cos(4pi/16)*cos(1pi/16))
+1   694		  =061F78AA		 q02 = 0102725802 ; 2E26/(cos(4pi/16)*cos(2pi/16))
+1   695		  =06CDAE4B		 q03 = 0114142795 ; 2E26/(cos(4pi/16)*cos(3pi/16))
+1   696		  =08000000		 q04 = 0134217728 ; 2E26/(cos(4pi/16)*cos(4pi/16))
+1   697		  =0A2E9C0D		 q05 = 0170826765 ; 2E26/(cos(4pi/16)*cos(5pi/16))
+1   698		  =0EC835E8		 q06 = 0248002024 ; 2E26/(cos(4pi/16)*cos(6pi/16))
+1   699		  =1CFEFEFD		 q07 = 0486473469 ; 2E26/(cos(4pi/16)*cos(7pi/16))
+1   700					 ; aanfdct - quantization coefficients - 2nd row
+1   701		  =05C48695		 q10 = 0096765589 ; 2E26/(cos(1pi/16)*cos(4pi/16))
+1   702		  =04288406		 q11 = 0069764102 ; 2E26/(cos(1pi/16)*cos(1pi/16))
+1   703		  =046A1578		 q12 = 0074061176 ; 2E26/(cos(1pi/16)*cos(2pi/16))
+1   704		  =04E7AE91		 q13 = 0082292369 ; 2E26/(cos(1pi/16)*cos(3pi/16))
+1   705		  =05C48695		 q14 = 0096765589 ; 2E26/(cos(1pi/16)*cos(4pi/16))
+1   706		  =075742C2		 q15 = 0123159234 ; 2E26/(cos(1pi/16)*cos(5pi/16))
+1   707		  =0AA84387		 q16 = 0178799495 ; 2E26/(cos(1pi/16)*cos(6pi/16))
+1   708		  =14E7AE91		 q17 = 0350727825 ; 2E26/(cos(1pi/16)*cos(7pi/16))
+1   709					 ; aanfdct - quantization coefficients - 3rd row
+1   710		  =061F78AA		 q20 = 0102725802 ; 2E26/(cos(2pi/16)*cos(4pi/16))
+1   711		  =046A1578		 q21 = 0074061176 ; 2E26/(cos(2pi/16)*cos(1pi/16))
+1   712		  =04AFB0CD		 q22 = 0078622925 ; 2E26/(cos(2pi/16)*cos(2pi/16))
+1   713		  =05350659		 q23 = 0087361113 ; 2E26/(cos(2pi/16)*cos(3pi/16))
+1   714		  =061F78AA		 q24 = 0102725802 ; 2E26/(cos(2pi/16)*cos(4pi/16))
+1   715		  =07CB033A		 q25 = 0130745146 ; 2E26/(cos(2pi/16)*cos(5pi/16))
+1   716		  =0B504F33		 q26 = 0189812531 ; 2E26/(cos(2pi/16)*cos(6pi/16))
+1   717		  =163150B1		 q27 = 0372330673 ; 2E26/(cos(2pi/16)*cos(7pi/16))
+1   718					 ; aanfdct - quantization coefficients - 4th row
+1   719		  =06CDAE4B		 q30 = 0114142795 ; 2E26/(cos(3pi/16)*cos(4pi/16))
+1   720		  =04E7AE91		 q31 = 0082292369 ; 2E26/(cos(3pi/16)*cos(1pi/16))
+1   721		  =05350659		 q32 = 0087361113 ; 2E26/(cos(3pi/16)*cos(2pi/16))
+1   722		  =05C92D84		 q33 = 0097070468 ; 2E26/(cos(3pi/16)*cos(3pi/16))
+1   723		  =06CDAE4B		 q34 = 0114142795 ; 2E26/(cos(3pi/16)*cos(4pi/16))
+1   724		  =08A8BD3E		 q35 = 0145276222 ; 2E26/(cos(3pi/16)*cos(5pi/16))
+1   725		  =0C9234E0		 q36 = 0210908384 ; 2E26/(cos(3pi/16)*cos(6pi/16))
+1   726		  =18A8BD3E		 q37 = 0413711678 ; 2E26/(cos(3pi/16)*cos(7pi/16))
+1   727					 ; aanfdct - quantization coefficients - 5th row
+1   728		  =08000000		 q40 = 0134217728 ; 2E26/(cos(4pi/16)*cos(4pi/16))
+1   729		  =05C48695		 q41 = 0096765589 ; 2E26/(cos(4pi/16)*cos(1pi/16))
+1   730		  =061F78AA		 q42 = 0102725802 ; 2E26/(cos(4pi/16)*cos(2pi/16))
+1   731		  =06CDAE4B		 q43 = 0114142795 ; 2E26/(cos(4pi/16)*cos(3pi/16))
+1   732		  =08000000		 q44 = 0134217728 ; 2E26/(cos(4pi/16)*cos(4pi/16))
+1   733		  =0A2E9C0D		 q45 = 0170826765 ; 2E26/(cos(4pi/16)*cos(5pi/16))
+1   734		  =0EC835E8		 q46 = 0248002024 ; 2E26/(cos(4pi/16)*cos(6pi/16))
+1   735		  =1CFEFEFD		 q47 = 0486473469 ; 2E26/(cos(4pi/16)*cos(7pi/16))
+1   736					 ; aanfdct - quantization coefficients - 6th row
+1   737		  =0A2E9C0D		 q50 = 0170826765 ; 2E26/(cos(5pi/16)*cos(4pi/16))
+1   738		  =075742C2		 q51 = 0123159234 ; 2E26/(cos(5pi/16)*cos(1pi/16))
+1   739		  =07CB033A		 q52 = 0130745146 ; 2E26/(cos(5pi/16)*cos(2pi/16))
+1   740		  =08A8BD3E		 q53 = 0145276222 ; 2E26/(cos(5pi/16)*cos(3pi/16))
+1   741		  =0A2E9C0D		 q54 = 0170826765 ; 2E26/(cos(5pi/16)*cos(4pi/16))
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 14
+webview.asm
+
+
+
+1   742		  =0CF595AF		 q55 = 0217421231 ; 2E26/(cos(5pi/16)*cos(5pi/16))
+1   743		  =12D062F0		 q56 = 0315646704 ; 2E26/(cos(5pi/16)*cos(6pi/16))
+1   744		  =24E7AE91		 q57 = 0619163281 ; 2E26/(cos(5pi/16)*cos(7pi/16))
+1   745					 ; aanfdct - quantization coefficients - 7th row
+1   746		  =0EC835E8		 q60 = 0248002024 ; 2E26/(cos(6pi/16)*cos(4pi/16))
+1   747		  =0AA84387		 q61 = 0178799495 ; 2E26/(cos(6pi/16)*cos(1pi/16))
+1   748		  =0B504F33		 q62 = 0189812531 ; 2E26/(cos(6pi/16)*cos(2pi/16))
+1   749		  =0C9234E0		 q63 = 0210908384 ; 2E26/(cos(6pi/16)*cos(3pi/16))
+1   750		  =0EC835E8		 q64 = 0248002024 ; 2E26/(cos(6pi/16)*cos(4pi/16))
+1   751		  =12D062F0		 q65 = 0315646704 ; 2E26/(cos(6pi/16)*cos(5pi/16))
+1   752		  =1B504F33		 q66 = 0458247987 ; 2E26/(cos(6pi/16)*cos(6pi/16))
+1   753		  =3593E882		 q67 = 0898885762 ; 2E26/(cos(6pi/16)*cos(7pi/16))
+1   754					 ; aanfdct - quantization coefficients - 8th row
+1   755		  =1CFEFEFD		 q70 = 0486473469 ; 2E26/(cos(7pi/16)*cos(4pi/16))
+1   756		  =14E7AE91		 q71 = 0350727825 ; 2E26/(cos(7pi/16)*cos(1pi/16))
+1   757		  =163150B1		 q72 = 0372330673 ; 2E26/(cos(7pi/16)*cos(2pi/16))
+1   758		  =18A8BD3E		 q73 = 0413711678 ; 2E26/(cos(7pi/16)*cos(3pi/16))
+1   759		  =1CFEFEFD		 q74 = 0486473469 ; 2E26/(cos(7pi/16)*cos(4pi/16))
+1   760		  =24E7AE91		 q75 = 0619163281 ; 2E26/(cos(7pi/16)*cos(5pi/16))
+1   761		  =3593E882		 q76 = 0898885762 ; 2E26/(cos(7pi/16)*cos(6pi/16))
+1   762		  =6918B8C7		 q77 = 1763227847 ; 2E26/(cos(7pi/16)*cos(7pi/16))
+1   763
+1   764					 ; aanidct - quantization coefficients - 1st row
+1   765		  =00400000		 d00 = 4194304 ; 2E23*(cos(4pi/16)*cos(4pi/16))
+1   766		  =0058C543		 d01 = 5817667 ; 2E23*(cos(4pi/16)*cos(1pi/16))
+1   767		  =00539EBA		 d02 = 5480122 ; 2E23*(cos(4pi/16)*cos(2pi/16))
+1   768		  =004B418C		 d03 = 4931980 ; 2E23*(cos(4pi/16)*cos(3pi/16))
+1   769		  =00400000		 d04 = 4194304 ; 2E23*(cos(4pi/16)*cos(4pi/16))
+1   770		  =003248D4		 d05 = 3295444 ; 2E23*(cos(4pi/16)*cos(5pi/16))
+1   771		  =0022A2F5		 d06 = 2269941 ; 2E23*(cos(4pi/16)*cos(6pi/16))
+1   772		  =0011A856		 d07 = 1157206 ; 2E23*(cos(4pi/16)*cos(7pi/16))
+1   773					 ; aanidct - quantization coefficients - 2nd row
+1   774		  =0058C543		 d10 = 5817667 ; 2E23*(cos(1pi/16)*cos(4pi/16))
+1   775		  =007B20D8		 d11 = 8069336 ; 2E23*(cos(1pi/16)*cos(1pi/16))
+1   776		  =0073FBFC		 d12 = 7601148 ; 2E23*(cos(1pi/16)*cos(2pi/16))
+1   777		  =00686214		 d13 = 6840852 ; 2E23*(cos(1pi/16)*cos(3pi/16))
+1   778		  =0058C543		 d14 = 5817667 ; 2E23*(cos(1pi/16)*cos(4pi/16))
+1   779		  =0045BF1F		 d15 = 4570911 ; 2E23*(cos(1pi/16)*cos(5pi/16))
+1   780		  =00300AD3		 d16 = 3148499 ; 2E23*(cos(1pi/16)*cos(6pi/16))
+1   781		  =00187DE3		 d17 = 1605091 ; 2E23*(cos(1pi/16)*cos(7pi/16))
+1   782					 ; aanidct - quantization coefficients - 3rd row
+1   783		  =00539EBA		 d20 = 5480122 ; 2E23*(cos(2pi/16)*cos(4pi/16))
+1   784		  =0073FBFC		 d21 = 7601148 ; 2E23*(cos(2pi/16)*cos(1pi/16))
+1   785		  =006D413D		 d22 = 7160125 ; 2E23*(cos(2pi/16)*cos(2pi/16))
+1   786		  =006253A6		 d23 = 6443942 ; 2E23*(cos(2pi/16)*cos(3pi/16))
+1   787		  =00539EBA		 d24 = 5480122 ; 2E23*(cos(2pi/16)*cos(4pi/16))
+1   788		  =0041B328		 d25 = 4305704 ; 2E23*(cos(2pi/16)*cos(5pi/16))
+1   789		  =002D413D		 d26 = 2965821 ; 2E23*(cos(2pi/16)*cos(6pi/16))
+1   790		  =0017121A		 d27 = 1511962 ; 2E23*(cos(2pi/16)*cos(7pi/16))
+1   791					 ; aanidct - quantization coefficients - 4th row
+1   792		  =004B418C		 d30 = 4931980 ; 2E23*(cos(3pi/16)*cos(4pi/16))
+1   793		  =00686214		 d31 = 6840852 ; 2E23*(cos(3pi/16)*cos(1pi/16))
+1   794		  =006253A6		 d32 = 6443942 ; 2E23*(cos(3pi/16)*cos(2pi/16))
+1   795		  =00587DE3		 d33 = 5799395 ; 2E23*(cos(3pi/16)*cos(3pi/16))
+1   796		  =004B418C		 d34 = 4931980 ; 2E23*(cos(3pi/16)*cos(4pi/16))
+1   797		  =003B20D8		 d35 = 3875032 ; 2E23*(cos(3pi/16)*cos(5pi/16))
+1   798		  =0028BA70		 d36 = 2669168 ; 2E23*(cos(3pi/16)*cos(6pi/16))
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 15
+webview.asm
+
+
+
+1   799		  =0014C35A		 d37 = 1360730 ; 2E23*(cos(3pi/16)*cos(7pi/16))
+1   800					 ; aanidct - quantization coefficients - 5th row
+1   801		  =00400000		 d40 = 4194304 ; 2E23*(cos(4pi/16)*cos(4pi/16))
+1   802		  =0058C543		 d41 = 5817667 ; 2E23*(cos(4pi/16)*cos(1pi/16))
+1   803		  =00539EBA		 d42 = 5480122 ; 2E23*(cos(4pi/16)*cos(2pi/16))
+1   804		  =004B418C		 d43 = 4931980 ; 2E23*(cos(4pi/16)*cos(3pi/16))
+1   805		  =00400000		 d44 = 4194304 ; 2E23*(cos(4pi/16)*cos(4pi/16))
+1   806		  =003248D4		 d45 = 3295444 ; 2E23*(cos(4pi/16)*cos(5pi/16))
+1   807		  =0022A2F5		 d46 = 2269941 ; 2E23*(cos(4pi/16)*cos(6pi/16))
+1   808		  =0011A856		 d47 = 1157206 ; 2E23*(cos(4pi/16)*cos(7pi/16))
+1   809					 ; aanidct - quantization coefficients - 6th row
+1   810		  =003248D4		 d50 = 3295444 ; 2E23*(cos(5pi/16)*cos(4pi/16))
+1   811		  =0045BF1F		 d51 = 4570911 ; 2E23*(cos(5pi/16)*cos(1pi/16))
+1   812		  =0041B328		 d52 = 4305704 ; 2E23*(cos(5pi/16)*cos(2pi/16))
+1   813		  =003B20D8		 d53 = 3875032 ; 2E23*(cos(5pi/16)*cos(3pi/16))
+1   814		  =003248D4		 d54 = 3295444 ; 2E23*(cos(5pi/16)*cos(4pi/16))
+1   815		  =0027821D		 d55 = 2589213 ; 2E23*(cos(5pi/16)*cos(5pi/16))
+1   816		  =001B36B9		 d56 = 1783481 ; 2E23*(cos(5pi/16)*cos(6pi/16))
+1   817		  =000DDF9B		 d57 = 0909211 ; 2E23*(cos(5pi/16)*cos(7pi/16))
+1   818					 ; aanidct - quantization coefficients - 7th row
+1   819		  =0022A2F5		 d60 = 2269941 ; 2E23*(cos(6pi/16)*cos(4pi/16))
+1   820		  =00300AD3		 d61 = 3148499 ; 2E23*(cos(6pi/16)*cos(1pi/16))
+1   821		  =002D413D		 d62 = 2965821 ; 2E23*(cos(6pi/16)*cos(2pi/16))
+1   822		  =0028BA70		 d63 = 2669168 ; 2E23*(cos(6pi/16)*cos(3pi/16))
+1   823		  =0022A2F5		 d64 = 2269941 ; 2E23*(cos(6pi/16)*cos(4pi/16))
+1   824		  =001B36B9		 d65 = 1783481 ; 2E23*(cos(6pi/16)*cos(5pi/16))
+1   825		  =0012BEC3		 d66 = 1228483 ; 2E23*(cos(6pi/16)*cos(6pi/16))
+1   826		  =00098E63		 d67 = 0626275 ; 2E23*(cos(6pi/16)*cos(7pi/16))
+1   827					 ; aanidct - quantization coefficients - 8th row
+1   828		  =0011A856		 d70 = 1157206 ; 2E23*(cos(7pi/16)*cos(4pi/16))
+1   829		  =00187DE3		 d71 = 1605091 ; 2E23*(cos(7pi/16)*cos(1pi/16))
+1   830		  =0017121A		 d72 = 1511962 ; 2E23*(cos(7pi/16)*cos(2pi/16))
+1   831		  =0014C35A		 d73 = 1360730 ; 2E23*(cos(7pi/16)*cos(3pi/16))
+1   832		  =0011A856		 d74 = 1157206 ; 2E23*(cos(7pi/16)*cos(4pi/16))
+1   833		  =000DDF9B		 d75 = 0909211 ; 2E23*(cos(7pi/16)*cos(5pi/16))
+1   834		  =00098E63		 d76 = 0626275 ; 2E23*(cos(7pi/16)*cos(6pi/16))
+1   835		  =0004DF28		 d77 = 0319272 ; 2E23*(cos(7pi/16)*cos(7pi/16))
+1   836
+1   837	00000414			 dataseg
+1   838					 ; luminance - aanfdct - scaled	quantization table
+1   839	00000000  01000000 0093A70E   +	 yqt dd	q00/y00,q01/y01,q02/y02,q03/y03,q04/y04,q05/y05,q06/y06,q07/y07
+    840		  009CBF44 00AE2B07   +
+    841		  00BA2E8B 00C88228   +
+    842		  00FC47DC 019C637F
+1   843	00000020  0093A70E 004C096E   +	     dd	q10/y10,q11/y11,q12/y12,q13/y13,q14/y14,q15/y15,q16/y16,q17/y17
+    844		  0050B864 0059B10A   +
+    845		  00697753 00863BA0   +
+    846		  00C2E040 0164C75F
+1   847	00000040  009CBF44 0050B864   +	     dd	q20/y20,q21/y21,q22/y22,q23/y23,q24/y24,q25/y25,q26/y26,q27/y27
+    848		  0055B133 0058DE4A   +
+    849		  005C3446 0069002B   +
+    850		  0083A682 00DA831A
+1   851	00000060  00AE2B07 0059B10A   +	     dd	q30/y30,q31/y31,q32/y32,q33/y33,q34/y34,q35/y35,q36/y36,q37/y37
+    852		  0058DE4A 005C92D8   +
+    853		  0060C292 00698F1B   +
+    854		  00861789 00E17479
+1   855	00000080  00BA2E8B 00697753   +	     dd	q40/y40,q41/y41,q42/y42,q43/y43,q44/y44,q45/y45,q46/y46,q47/y47
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 16
+webview.asm
+
+
+
+    856		  005C3446 0060C292   +
+    857		  00666666 00767B74   +
+    858		  00918BEB 00F76EE6
+1   859	000000A0  00C88228 00863BA0   +	     dd	q50/y50,q51/y51,q52/y52,q53/y53,q54/y54,q55/y55,q56/y56,q57/y57
+    860		  0069002B 00698F1B   +
+    861		  00767B74 007F9973   +
+    862		  00A61511 0115DF7C
+1   863	000000C0  00FC47DC 00C2E040   +	     dd	q60/y60,q61/y61,q62/y62,q63/y63,q64/y64,q65/y65,q66/y66,q67/y67
+    864		  0083A682 00861789   +
+    865		  00918BEB 00A61511   +
+    866		  00D3E35E 0168F1E8
+1   867	000000E0  019C637F 0164C75F   +	     dd	q70/y70,q71/y71,q72/y72,q73/y73,q74/y74,q75/y75,q76/y76,q77/y77
+    868		  00DA831A 00E17479   +
+    869		  00F76EE6 0115DF7C   +
+    870		  0168F1E8 028096AF
+1   871					 ; luminance - huffman size table - dc coefficients
+1   872	00000100  02 03	03 03 03 03 04+	 yds db	02,03,03,03,03,03,04,05,06,07,08,09
+    873		  05 06	07 08 09
+1   874					 ; luminance - huffman code table - dc coefficients
+1   875	0000010C  0000 0002 0003 0004 +	 ydc dw	0000h,0002h,0003h,0004h,0005h,0006h,000Eh,001Eh,003Eh,007Eh,00FEh,01FEh
+    876		  0005 0006 000E 001E +
+    877		  003E 007E 00FE 01FE
+1   878					 ; luminance - huffman size table - ac coefficients
+1   879	00000124  04 00	00 00 00 00 00+	 yas db	04,00,00,00,00,00,00,00,00,00,00,00,00,00,00,11
+    880		  00 00	00 00 00 00 00+
+    881		  00 0B
+1   882	00000134  02 04	05 06 06 07 07+	     db	02,04,05,06,06,07,07,08,09,09,09,10,10,11,16,16
+    883		  08 09	09 09 0A 0A 0B+
+    884		  10 10
+1   885	00000144  02 05	08 09 0A 0B 0C+	     db	02,05,08,09,10,11,12,12,15,16,16,16,16,16,16,16
+    886		  0C 0F	10 10 10 10 10+
+    887		  10 10
+1   888	00000154  03 07	0A 0C 10 10 10+	     db	03,07,10,12,16,16,16,16,16,16,16,16,16,16,16,16
+    889		  10 10	10 10 10 10 10+
+    890		  10 10
+1   891	00000164  04 09	0C 10 10 10 10+	     db	04,09,12,16,16,16,16,16,16,16,16,16,16,16,16,16
+    892		  10 10	10 10 10 10 10+
+    893		  10 10
+1   894	00000174  05 0B	10 10 10 10 10+	     db	05,11,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+    895		  10 10	10 10 10 10 10+
+    896		  10 10
+1   897	00000184  07 10	10 10 10 10 10+	     db	07,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+    898		  10 10	10 10 10 10 10+
+    899		  10 10
+1   900	00000194  08 10	10 10 10 10 10+	     db	08,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+    901		  10 10	10 10 10 10 10+
+    902		  10 10
+1   903	000001A4  0A 10	10 10 10 10 10+	     db	10,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+    904		  10 10	10 10 10 10 10+
+    905		  10 10
+1   906	000001B4  10 10	10 10 10 10 10+	     db	16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+    907		  10 10	10 10 10 10 10+
+    908		  10 10
+1   909	000001C4  10 10	10 10 10 10 10+	     db	16,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+    910		  10 10	10 10 10 10 10+
+    911		  10 10
+1   912					 ; luminance - huffman code table - ac coefficients
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 17
+webview.asm
+
+
+
+1   913	000001D4  000A 0000 0000 0000 +	 yac dw	0000Ah,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,+
+    914		  0000 0000 0000 0000 +	 00000h,00000h,00000h,007F9h
+    915		  0000 0000 0000 0000 +
+    916		  0000 0000 0000 07F9
+1   917	000001F4  0000 000C 001C 003A +	     dw	00000h,0000Ch,0001Ch,0003Ah,0003Bh,0007Ah,0007Bh,000FAh,001F8h,001F9h,001FAh,003F9h,+
+    918		  003B 007A 007B 00FA +	 003FAh,007F8h,0FFEBh,0FFF5h
+    919		  01F8 01F9 01FA 03F9 +
+    920		  03FA 07F8 FFEB FFF5
+1   921	00000214  0001 001B 00F9 01F7 +	     dw	00001h,0001Bh,000F9h,001F7h,003F8h,007F7h,00FF6h,00FF7h,07FC0h,0FFBEh,0FFC7h,0FFD0h,+
+    922		  03F8 07F7 0FF6 0FF7 +	 0FFD9h,0FFE2h,0FFECh,0FFF6h
+    923		  7FC0 FFBE FFC7 FFD0 +
+    924		  FFD9 FFE2 FFEC FFF6
+1   925	00000234  0004 0079 03F7 0FF5 +	     dw	00004h,00079h,003F7h,00FF5h,0FF96h,0FF9Eh,0FFA6h,0FFAEh,0FFB6h,0FFBFh,0FFC8h,0FFD1h,+
+    926		  FF96 FF9E FFA6 FFAE +	 0FFDAh,0FFE3h,0FFEDh,0FFF7h
+    927		  FFB6 FFBF FFC8 FFD1 +
+    928		  FFDA FFE3 FFED FFF7
+1   929	00000254  000B 01F6 0FF4 FF8F +	     dw	0000Bh,001F6h,00FF4h,0FF8Fh,0FF97h,0FF9Fh,0FFA7h,0FFAFh,0FFB7h,0FFC0h,0FFC9h,0FFD2h,+
+    930		  FF97 FF9F FFA7 FFAF +	 0FFDBh,0FFE4h,0FFEEh,0FFF8h
+    931		  FFB7 FFC0 FFC9 FFD2 +
+    932		  FFDB FFE4 FFEE FFF8
+1   933	00000274  001A 07F6 FF89 FF90 +	     dw	0001Ah,007F6h,0FF89h,0FF90h,0FF98h,0FFA0h,0FFA8h,0FFB0h,0FFB8h,0FFC1h,0FFCAh,0FFD3h,+
+    934		  FF98 FFA0 FFA8 FFB0 +	 0FFDCh,0FFE5h,0FFEFh,0FFF9h
+    935		  FFB8 FFC1 FFCA FFD3 +
+    936		  FFDC FFE5 FFEF FFF9
+1   937	00000294  0078 FF84 FF8A FF91 +	     dw	00078h,0FF84h,0FF8Ah,0FF91h,0FF99h,0FFA1h,0FFA9h,0FFB1h,0FFB9h,0FFC2h,0FFCBh,0FFD4h,+
+    938		  FF99 FFA1 FFA9 FFB1 +	 0FFDDh,0FFE6h,0FFF0h,0FFFAh
+    939		  FFB9 FFC2 FFCB FFD4 +
+    940		  FFDD FFE6 FFF0 FFFA
+1   941	000002B4  00F8 FF85 FF8B FF92 +	     dw	000F8h,0FF85h,0FF8Bh,0FF92h,0FF9Ah,0FFA2h,0FFAAh,0FFB2h,0FFBAh,0FFC3h,0FFCCh,0FFD5h,+
+    942		  FF9A FFA2 FFAA FFB2 +	 0FFDEh,0FFE7h,0FFF1h,0FFFBh
+    943		  FFBA FFC3 FFCC FFD5 +
+    944		  FFDE FFE7 FFF1 FFFB
+1   945	000002D4  03F6 FF86 FF8C FF93 +	     dw	003F6h,0FF86h,0FF8Ch,0FF93h,0FF9Bh,0FFA3h,0FFABh,0FFB3h,0FFBBh,0FFC4h,0FFCDh,0FFD6h,+
+    946		  FF9B FFA3 FFAB FFB3 +	 0FFDFh,0FFE8h,0FFF2h,0FFFCh
+    947		  FFBB FFC4 FFCD FFD6 +
+    948		  FFDF FFE8 FFF2 FFFC
+1   949	000002F4  FF82 FF87 FF8D FF94 +	     dw	0FF82h,0FF87h,0FF8Dh,0FF94h,0FF9Ch,0FFA4h,0FFACh,0FFB4h,0FFBCh,0FFC5h,0FFCEh,0FFD7h,+
+    950		  FF9C FFA4 FFAC FFB4 +	 0FFE0h,0FFE9h,0FFF3h,0FFFDh
+    951		  FFBC FFC5 FFCE FFD7 +
+    952		  FFE0 FFE9 FFF3 FFFD
+1   953	00000314  FF83 FF88 FF8E FF95 +	     dw	0FF83h,0FF88h,0FF8Eh,0FF95h,0FF9Dh,0FFA5h,0FFADh,0FFB5h,0FFBDh,0FFC6h,0FFCFh,0FFD8h,+
+    954		  FF9D FFA5 FFAD FFB5 +	 0FFE1h,0FFEAh,0FFF4h,0FFFEh
+    955		  FFBD FFC6 FFCF FFD8 +
+    956		  FFE1 FFEA FFF4 FFFE
+1   957
+1   958	00000334			 dataseg
+1   959					 ; luminance - aanidct - scaled	dequantization table
+1   960	00000334  02000000 0377B49E   +	 yqi dd	d00*y00,d01*y01,d02*y02,d03*y03,d04*y04,d05*y05,d06*y06,d07*y07
+    961		  03443344 02F08F78   +
+    962		  02C00000 028DB2C4   +
+    963		  02078C5B 013DD60C
+1   964	00000354  0377B49E 06BBCBD0   +	     dd	d10*y10,d11*y11,d12*y12,d13*y13,d14*y14,d15*y15,d16*y16,d17*y17
+    965		  0657C7C8 05B55D18   +
+    966		  04DAC9AA 03D073B2   +
+    967		  02A0978A 016F604D
+1   968	00000374  03443344 0657C7C8   +	     dd	d20*y20,d21*y21,d22*y22,d23*y23,d24*y24,d25*y25,d26*y26,d27*y27
+    969		  05F99156 05C2E6BA   +
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 18
+webview.asm
+
+
+
+    970		  058D8A5A 04E04BF8   +
+    971		  03E39B3E 0257D6A4
+1   972	00000394  02F08F78 05B55D18   +	     dd	d30*y30,d31*y31,d32*y32,d33*y33,d34*y34,d35*y35,d36*y36,d37*y37
+    973		  05C2E6BA 0587DE30   +
+    974		  054A9BD8 04D9B1B8   +
+    975		  03D17A80 02455DD8
+1   976	000003B4  02C00000 04DAC9AA   +	     dd	d40*y40,d41*y41,d42*y42,d43*y43,d44*y44,d45*y45,d46*y46,d47*y47
+    977		  058D8A5A 054A9BD8   +
+    978		  05000000 04524238   +
+    979		  03848CE2 0211BA14
+1   980	000003D4  028DB2C4 03D073B2   +	     dd	d50*y50,d51*y51,d52*y52,d53*y53,d54*y54,d55*y55,d56*y56,d57*y57
+    981		  04E04BF8 04D9B1B8   +
+    982		  04524238 040336F2   +
+    983		  031532F5 01D7B296
+1   984	000003F4  02078C5B 02A0978A   +	     dd	d60*y60,d61*y61,d62*y62,d63*y63,d64*y64,d65*y65,d66*y66,d67*y67
+    985		  03E39B3E 03D17A80   +
+    986		  03848CE2 031532F5   +
+    987		  026A9723 016B22B2
+1   988	00000414  013DD60C 016F604D   +	     dd	d70*y70,d71*y71,d72*y72,d73*y73,d74*y74,d75*y75,d76*y76,d77*y77
+    989		  0257D6A4 02455DD8   +
+    990		  0211BA14 01D7B296   +
+    991		  016B22B2 00CC9C90
+1   992					 ; luminance - huffman decode tables - dc coefficients
+1   993	00000434  00 00	01 02 03 03 04+	 ydd db	00h,00h,01h,02h,03h,03h,04h,04h	; two 4	byte tables
+    994		  04
+1   995	0000043C  05 06	07 08 09 0A 0B+	 ydt db	05h,06h,07h,08h,09h,0Ah,0Bh,0Eh,0Eh,0Eh,0Eh,0Eh,0Eh,0Eh
+    996		  0E 0E	0E 0E 0E 0E 0E
+1   997					 ; luminance - huffman decode tables - ac coefficients
+1   998	0000044A  10 10	10 10 20 20 20+	 yad db	10h,10h,10h,10h,20h,20h,20h,20h	; nine 8 byte tables
+    999		  20
+1  1000	00000452  30 30	30 30 00 00 40+	     db	30h,30h,30h,30h,00h,00h,40h,40h,11h,11h,11h,11h,50h,50h,21h,21h
+   1001		  40 11	11 11 11 50 50+
+   1002		  21 21
+1  1003	00000462  12 12	12 12 13 13 14+	     db	12h,12h,12h,12h,13h,13h,14h,14h,60h,60h,31h,31h,15h,15h,16h,16h
+   1004		  14 60	60 31 31 15 15+
+   1005		  16 16
+1  1006	00000472  70 70	22 22 17 17 41+	     db	70h,70h,22h,22h,17h,17h,41h,23h,18h,18h,19h,19h,1Ah,1Ah,80h,32h
+   1007		  23 18	18 19 19 1A 1A+
+   1008		  80 32
+1  1009	00000482  24 24	1B 1B 1C 1C 51+	     db	24h,24h,1Bh,1Bh,1Ch,1Ch,51h,25h,1Dh,1Dh,0Fh,0Fh,42h,33h,26h,27h
+   1010		  25 1D	1D 0F 0F 42 33+
+   1011		  26 27
+1  1012					 ; luminance - huffman decode table - ac coefficients
+1  1013	00000492  28 28	90 A0 61 71 81+	 yat db	28h,28h,90h,160,61h,71h,81h,91h,161,52h,62h,72h,82h,92h,162,43h
+   1014		  91 A1	52 62 72 82 92+
+   1015		  A2 43
+1  1016	000004A2  53 63	73 83 93 A3 34+	     db	53h,63h,73h,83h,93h,163,34h,44h,54h,64h,74h,84h,94h,164,35h,45h
+   1017		  44 54	64 74 84 94 A4+
+   1018		  35 45
+1  1019	000004B2  55 65	75 85 95 A5 36+	     db	55h,65h,75h,85h,95h,165,36h,46h,56h,66h,76h,86h,96h,166,37h,47h
+   1020		  46 56	66 76 86 96 A6+
+   1021		  37 47
+1  1022	000004C2  57 67	77 87 97 A7 38+	     db	57h,67h,77h,87h,97h,167,38h,48h,58h,68h,78h,88h,98h,168,29h,39h
+   1023		  48 58	68 78 88 98 A8+
+   1024		  29 39
+1  1025	000004D2  49 59	69 79 89 99 A9+	     db	49h,59h,69h,79h,89h,99h,169,2Ah,3Ah,4Ah,5Ah,6Ah,7Ah,8Ah,9Ah,170
+   1026		  2A 3A	4A 5A 6A 7A 8A+
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 19
+webview.asm
+
+
+
+   1027		  9A AA
+1  1028	000004E2  2B 3B	4B 5B 6B 7B 8B+	     db	2Bh,3Bh,4Bh,5Bh,6Bh,7Bh,8Bh,9Bh,171,2Ch,3Ch,4Ch,5Ch,6Ch,7Ch,8Ch
+   1029		  9B AB	2C 3C 4C 5C 6C+
+   1030		  7C 8C
+1  1031	000004F2  9C AC	2D 3D 4D 5D 6D+	     db	9Ch,172,2Dh,3Dh,4Dh,5Dh,6Dh,7Dh,8Dh,9Dh,173,1Eh,2Eh,3Eh,4Eh,5Eh
+   1032		  7D 8D	9D AD 1E 2E 3E+
+   1033		  4E 5E
+1  1034	00000502  6E 7E	8E 9E AE 1F 2F+	     db	6Eh,7Eh,8Eh,9Eh,174,1Fh,2Fh,3Fh,4Fh,5Fh,6Fh,7Fh,8Fh,9Fh,175,0Eh
+   1035		  3F 4F	5F 6F 7F 8F 9F+
+   1036		  AF 0E
+1  1037
+1  1038	00000512			 dataseg
+1  1039					 ; chrominance - aanfdct - scaled quantization table
+1  1040	00000512  00AAAAAA 0049D387   +	 cqt dd	q00/c00,q01/c01,q02/c02,q03/c03,q04/c04,q05/c05,q06/c06,q07/c07
+   1041		  00343FC1 002B8AC1   +
+   1042		  00186186 001F07F3   +
+   1043		  002D0CD5 00585E76
+1  1044	00000532  0049D387 00214420   +	     dd	q10/c10,q11/c11,q12/c12,q13/c13,q14/c14,q15/c15,q16/c16,q17/c17
+   1045		  001AE821 001740DC   +
+   1046		  001193E3 00165F45   +
+   1047		  00207AB5 003FB5E3
+1  1048	00000552  00343FC1 001AE821   +	     dd	q20/c20,q21/c21,q22/c22,q23/c23,q24/c24,q25/c25,q26/c26,q27/c27
+   1049		  00156C4C 00143285   +
+   1050		  0012A90E 0017C009   +
+   1051		  00227AD8 0043A27C
+1  1052	00000572  002B8AC1 001740DC   +	     dd	q30/c30,q31/c31,q32/c32,q33/c33,q34/c34,q35/c35,q36/c36,q37/c37
+   1053		  00143285 0011A210   +
+   1054		  0014BBFA 001A63C6   +
+   1055		  00264FDE 004B26D3
+1  1056	00000592  00186186 001193E3   +	     dd	q40/c40,q41/c41,q42/c42,q43/c43,q44/c44,q45/c45,q46/c46,q47/c47
+   1057		  0012A90E 0014BBFA   +
+   1058		  00186186 001F07F3   +
+   1059		  002D0CD5 00585E76
+1  1060	000005B2  001F07F3 00165F45   +	     dd	q50/c50,q51/c51,q52/c52,q53/c53,q54/c54,q55/c55,q56/c56,q57/c57
+   1061		  0017C009 001A63C6   +
+   1062		  001F07F3 00277EBB   +
+   1063		  00395682 007078EF
+1  1064	000005D2  002D0CD5 00207AB5   +	     dd	q60/c60,q61/c61,q62/c62,q63/c63,q64/c64,q65/c65,q66/c66,q67/c67
+   1065		  00227AD8 00264FDE   +
+   1066		  002D0CD5 00395682   +
+   1067		  00533DE5 00A348DC
+1  1068	000005F2  00585E76 003FB5E3   +	     dd	q70/c70,q71/c71,q72/c72,q73/c73,q74/c74,q75/c75,q76/c76,q77/c77
+   1069		  0043A27C 004B26D3   +
+   1070		  00585E76 007078EF   +
+   1071		  00A348DC 01404B57
+1  1072					 ; chrominance - huffman size table - dc coefficients
+1  1073	00000612  02 02	02 03 04 05 06+	 cds db	02,02,02,03,04,05,06,07,08,09,10,11
+   1074		  07 08	09 0A 0B
+1  1075					 ; chrominance - huffman code table - dc coefficients
+1  1076	0000061E  0000 0001 0002 0006 +	 cdc dw	0000h,0001h,0002h,0006h,000Eh,001Eh,003Eh,007Eh,00FEh,01FEh,03FEh,07FEh
+   1077		  000E 001E 003E 007E +
+   1078		  00FE 01FE 03FE 07FE
+1  1079					 ; chrominance - huffman size table - ac coefficients
+1  1080	00000636  02 00	00 00 00 00 00+	 cas db	02,00,00,00,00,00,00,00,00,00,00,00,00,00,00,10
+   1081		  00 00	00 00 00 00 00+
+   1082		  00 0A
+1  1083	00000646  02 04	05 05 06 06 07+	     db	02,04,05,05,06,06,07,07,08,09,09,09,09,11,14,15
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 20
+webview.asm
+
+
+
+   1084		  07 08	09 09 09 09 0B+
+   1085		  0E 0F
+1  1086	00000656  03 06	08 08 09 0A 0B+	     db	03,06,08,08,09,10,11,11,16,16,16,16,16,16,16,16
+   1087		  0B 10	10 10 10 10 10+
+   1088		  10 10
+1  1089	00000666  04 08	0A 0A 10 10 10+	     db	04,08,10,10,16,16,16,16,16,16,16,16,16,16,16,16
+   1090		  10 10	10 10 10 10 10+
+   1091		  10 10
+1  1092	00000676  05 09	0C 0C 10 10 10+	     db	05,09,12,12,16,16,16,16,16,16,16,16,16,16,16,16
+   1093		  10 10	10 10 10 10 10+
+   1094		  10 10
+1  1095	00000686  05 0B	0F 10 10 10 10+	     db	05,11,15,16,16,16,16,16,16,16,16,16,16,16,16,16
+   1096		  10 10	10 10 10 10 10+
+   1097		  10 10
+1  1098	00000696  06 0C	10 10 10 10 10+	     db	06,12,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+   1099		  10 10	10 10 10 10 10+
+   1100		  10 10
+1  1101	000006A6  07 10	10 10 10 10 10+	     db	07,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+   1102		  10 10	10 10 10 10 10+
+   1103		  10 10
+1  1104	000006B6  09 10	10 10 10 10 10+	     db	09,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+   1105		  10 10	10 10 10 10 10+
+   1106		  10 10
+1  1107	000006C6  0A 10	10 10 10 10 10+	     db	10,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+   1108		  10 10	10 10 10 10 10+
+   1109		  10 10
+1  1110	000006D6  0C 10	10 10 10 10 10+	     db	12,16,16,16,16,16,16,16,16,16,16,16,16,16,16,16
+   1111		  10 10	10 10 10 10 10+
+   1112		  10 10
+1  1113					 ; chrominance - huffman code table - ac coefficients
+1  1114	000006E6  0000 0000 0000 0000 +	 cac dw	00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,00000h,+
+   1115		  0000 0000 0000 0000 +	 00000h,00000h,00000h,003FAh
+   1116		  0000 0000 0000 0000 +
+   1117		  0000 0000 0000 03FA
+1  1118	00000706  0001 000B 001A 001B +	     dw	00001h,0000Bh,0001Ah,0001Bh,0003Ah,0003Bh,00079h,0007Ah,000F9h,001F7h,001F8h,001F9h,+
+   1119		  003A 003B 0079 007A +	 001FAh,007F9h,03FE0h,07FC3h
+   1120		  00F9 01F7 01F8 01F9 +
+   1121		  01FA 07F9 3FE0 7FC3
+1  1122	00000726  0004 0039 00F7 00F8 +	     dw	00004h,00039h,000F7h,000F8h,001F6h,003F9h,007F7h,007F8h,0FFB7h,0FFC0h,0FFC9h,0FFD2h,+
+   1123		  01F6 03F9 07F7 07F8 +	 0FFDBh,0FFE4h,0FFEDh,0FFF6h
+   1124		  FFB7 FFC0 FFC9 FFD2 +
+   1125		  FFDB FFE4 FFED FFF6
+1  1126	00000746  000A 00F6 03F7 03F8 +	     dw	0000Ah,000F6h,003F7h,003F8h,0FF97h,0FF9Fh,0FFA7h,0FFAFh,0FFB8h,0FFC1h,0FFCAh,0FFD3h,+
+   1127		  FF97 FF9F FFA7 FFAF +	 0FFDCh,0FFE5h,0FFEEh,0FFF7h
+   1128		  FFB8 FFC1 FFCA FFD3 +
+   1129		  FFDC FFE5 FFEE FFF7
+1  1130	00000766  0018 01F5 0FF6 0FF7 +	     dw	00018h,001F5h,00FF6h,00FF7h,0FF98h,0FFA0h,0FFA8h,0FFB0h,0FFB9h,0FFC2h,0FFCBh,0FFD4h,+
+   1131		  FF98 FFA0 FFA8 FFB0 +	 0FFDDh,0FFE6h,0FFEFh,0FFF8h
+   1132		  FFB9 FFC2 FFCB FFD4 +
+   1133		  FFDD FFE6 FFEF FFF8
+1  1134	00000786  0019 07F6 7FC2 FF91 +	     dw	00019h,007F6h,07FC2h,0FF91h,0FF99h,0FFA1h,0FFA9h,0FFB1h,0FFBAh,0FFC3h,0FFCCh,0FFD5h,+
+   1135		  FF99 FFA1 FFA9 FFB1 +	 0FFDEh,0FFE7h,0FFF0h,0FFF9h
+   1136		  FFBA FFC3 FFCC FFD5 +
+   1137		  FFDE FFE7 FFF0 FFF9
+1  1138	000007A6  0038 0FF5 FF8C FF92 +	     dw	00038h,00FF5h,0FF8Ch,0FF92h,0FF9Ah,0FFA2h,0FFAAh,0FFB2h,0FFBBh,0FFC4h,0FFCDh,0FFD6h,+
+   1139		  FF9A FFA2 FFAA FFB2 +	 0FFDFh,0FFE8h,0FFF1h,0FFFAh
+   1140		  FFBB FFC4 FFCD FFD6 +
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 21
+webview.asm
+
+
+
+   1141		  FFDF FFE8 FFF1 FFFA
+1  1142	000007C6  0078 FF88 FF8D FF93 +	     dw	00078h,0FF88h,0FF8Dh,0FF93h,0FF9Bh,0FFA3h,0FFABh,0FFB3h,0FFBCh,0FFC5h,0FFCEh,0FFD7h,+
+   1143		  FF9B FFA3 FFAB FFB3 +	 0FFE0h,0FFE9h,0FFF2h,0FFFBh
+   1144		  FFBC FFC5 FFCE FFD7 +
+   1145		  FFE0 FFE9 FFF2 FFFB
+1  1146	000007E6  01F4 FF89 FF8E FF94 +	     dw	001F4h,0FF89h,0FF8Eh,0FF94h,0FF9Ch,0FFA4h,0FFACh,0FFB4h,0FFBDh,0FFC6h,0FFCFh,0FFD8h,+
+   1147		  FF9C FFA4 FFAC FFB4 +	 0FFE1h,0FFEAh,0FFF3h,0FFFCh
+   1148		  FFBD FFC6 FFCF FFD8 +
+   1149		  FFE1 FFEA FFF3 FFFC
+1  1150	00000806  03F6 FF8A FF8F FF95 +	     dw	003F6h,0FF8Ah,0FF8Fh,0FF95h,0FF9Dh,0FFA5h,0FFADh,0FFB5h,0FFBEh,0FFC7h,0FFD0h,0FFD9h,+
+   1151		  FF9D FFA5 FFAD FFB5 +	 0FFE2h,0FFEBh,0FFF4h,0FFFDh
+   1152		  FFBE FFC7 FFD0 FFD9 +
+   1153		  FFE2 FFEB FFF4 FFFD
+1  1154	00000826  0FF4 FF8B FF90 FF96 +	     dw	00FF4h,0FF8Bh,0FF90h,0FF96h,0FF9Eh,0FFA6h,0FFAEh,0FFB6h,0FFBFh,0FFC8h,0FFD1h,0FFDAh,+
+   1155		  FF9E FFA6 FFAE FFB6 +	 0FFE3h,0FFECh,0FFF5h,0FFFEh
+   1156		  FFBF FFC8 FFD1 FFDA +
+   1157		  FFE3 FFEC FFF5 FFFE
+1  1158
+1  1159	00000846			 dataseg
+1  1160					 ; chrominance - aanidct - scaled dequantization table
+1  1161	00000846  03000000 06EF693C   +	 cqi dd	d00*c00,d01*c01,d02*c02,d03*c03,d04*c04,d05*c05,d06*c06,d07*c07
+   1162		  09CC99CC 0BC23DE0   +
+   1163		  15000000 107FE590   +
+   1164		  0B5D7864 05CB3C38
+1  1165	00000866  06EF693C 0F641B00   +	     dd	d10*c10,d11*c11,d12*c12,d13*c13,d14*c14,d15*c15,d16*c16,d17*c17
+   1166		  13075758 1604B038   +
+   1167		  1D20B9FC 16E2B62C   +
+   1168		  0FC38D3C 08094E7C
+1  1169	00000886  09CC99CC 13075758   +	     dd	d20*c20,d21*c21,d22*c22,d23*c23,d24*c24,d25*c25,d26*c26,d27*c27
+   1170		  17E64558 195990CC   +
+   1171		  1B701508 158EC920   +
+   1172		  0ED96804 0791F088
+1  1173	000008A6  0BC23DE0 1604B038   +	     dd	d30*c30,d31*c31,d32*c32,d33*c33,d34*c34,d35*c35,d36*c36,d37*c37
+   1174		  195990CC 1D094E7C   +
+   1175		  18B181F0 1366C6E0   +
+   1176		  0D5D2CC0 06D01988
+1  1177	000008C6  15000000 1D20B9FC   +	     dd	d40*c40,d41*c41,d42*c42,d43*c43,d44*c44,d45*c45,d46*c46,d47*c47
+   1178		  1B701508 18B181F0   +
+   1179		  15000000 107FE590   +
+   1180		  0B5D7864 05CB3C38
+1  1181	000008E6  107FE590 16E2B62C   +	     dd	d50*c50,d51*c51,d52*c52,d53*c53,d54*c54,d55*c55,d56*c56,d57*c57
+   1182		  158EC920 1366C6E0   +
+   1183		  107FE590 0CF6B184   +
+   1184		  08EDF4B4 048D5EDC
+1  1185	00000906  0B5D7864 0FC38D3C   +	     dd	d60*c60,d61*c61,d62*c62,d63*c63,d64*c64,d65*c65,d66*c66,d67*c67
+   1186		  0ED96804 0D5D2CC0   +
+   1187		  0B5D7864 08EDF4B4   +
+   1188		  062697FC 0322B87C
+1  1189	00000926  05CB3C38 08094E7C   +	     dd	d70*c70,d71*c71,d72*c72,d73*c73,d74*c74,d75*c75,d76*c76,d77*c77
+   1190		  0791F088 06D01988   +
+   1191		  05CB3C38 048D5EDC   +
+   1192		  0322B87C 01993920
+1  1193					 ; chrominance - huffman decode	tables - dc coefficients
+1  1194	00000946  00 00	01 01 02 02 02+	 cdd db	00h,00h,01h,01h,02h,02h,02h,02h	; two 4	byte tables
+   1195		  02
+1  1196	0000094E  03 04	05 06 07 08 09+	 cdt db	03h,04h,05h,06h,07h,08h,09h,0Ah,0Bh,0Eh,0Eh,0Eh,0Eh,0Eh
+   1197		  0A 0B	0E 0E 0E 0E 0E
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 22
+webview.asm
+
+
+
+1  1198					 ; chrominance - huffman decode	tables - ac coefficients
+1  1199	0000095C  00 00	00 00 10 10 10+	 cad db	00h,00h,00h,00h,10h,10h,10h,10h	; nine 8 byte tables
+   1200		  10
+1  1201	00000964  20 20	20 20 30 30 11+	     db	20h,20h,20h,20h,30h,30h,11h,11h,40h,40h,50h,50h,12h,12h,13h,13h
+   1202		  11 40	40 50 50 12 12+
+   1203		  13 13
+1  1204	00000974  60 60	21 21 14 14 15+	     db	60h,60h,21h,21h,14h,14h,15h,15h,70h,70h,16h,16h,17h,17h,31h,22h
+   1205		  15 70	70 16 16 17 17+
+   1206		  31 22
+1  1207	00000984  23 23	18 18 80 41 24+	     db	23h,23h,18h,18h,80h,41h,24h,19h,1Ah,1Ah,1Bh,1Bh,1Ch,1Ch,90h,32h
+   1208		  19 1A	1A 1B 1B 1C 1C+
+   1209		  90 32
+1  1210	00000994  33 33	25 25 0F 0F 51+	     db	33h,33h,25h,25h,0Fh,0Fh,51h,26h,27h,27h,1Dh,1Dh,160,61h,42h,43h
+   1211		  26 27	27 1D 1D A0 61+
+   1212		  42 43
+1  1213					 ; chrominance - huffman decode	table -	ac coefficients
+1  1214	000009A4  1E 1E	1E 1E 52 52 1F+	 cat db	1Eh,1Eh,1Eh,1Eh,52h,52h,1Fh,1Fh,71h,81h,91h,161,62h,72h,82h,92h
+   1215		  1F 71	81 91 A1 62 72+
+   1216		  82 92
+1  1217	000009B4  A2 53	63 73 83 93 A3+	     db	162,53h,63h,73h,83h,93h,163,34h,44h,54h,64h,74h,84h,94h,164,35h
+   1218		  34 44	54 64 74 84 94+
+   1219		  A4 35
+1  1220	000009C4  45 55	65 75 85 95 A5+	     db	45h,55h,65h,75h,85h,95h,165,36h,46h,56h,66h,76h,86h,96h,166,37h
+   1221		  36 46	56 66 76 86 96+
+   1222		  A6 37
+1  1223	000009D4  47 57	67 77 87 97 A7+	     db	47h,57h,67h,77h,87h,97h,167,28h,38h,48h,58h,68h,78h,88h,98h,168
+   1224		  28 38	48 58 68 78 88+
+   1225		  98 A8
+1  1226	000009E4  29 39	49 59 69 79 89+	     db	29h,39h,49h,59h,69h,79h,89h,99h,169,2Ah,3Ah,4Ah,5Ah,6Ah,7Ah,8Ah
+   1227		  99 A9	2A 3A 4A 5A 6A+
+   1228		  7A 8A
+1  1229	000009F4  9A AA	2B 3B 4B 5B 6B+	     db	9Ah,170,2Bh,3Bh,4Bh,5Bh,6Bh,7Bh,8Bh,9Bh,171,2Ch,3Ch,4Ch,5Ch,6Ch
+   1230		  7B 8B	9B AB 2C 3C 4C+
+   1231		  5C 6C
+1  1232	00000A04  7C 8C	9C AC 2D 3D 4D+	     db	7Ch,8Ch,9Ch,172,2Dh,3Dh,4Dh,5Dh,6Dh,7Dh,8Dh,9Dh,173,2Eh,3Eh,4Eh
+   1233		  5D 6D	7D 8D 9D AD 2E+
+   1234		  3E 4E
+1  1235	00000A14  5E 6E	7E 8E 9E AE 2F+	     db	5Eh,6Eh,7Eh,8Eh,9Eh,174,2Fh,3Fh,4Fh,5Fh,6Fh,7Fh,8Fh,9Fh,175,0Eh
+   1236		  3F 4F	5F 6F 7F 8F 9F+
+   1237		  AF 0E
+1  1238
+1  1239	00000A24			 udataseg
+1  1240	00000400  ????????		 hcInBits dd ?
+1  1241	00000404  ????????		 hcOffset dd ?
+1  1242	00000408  ????????		 hcStatus dd ?
+1  1243
+1  1244	0000040C			 dataseg
+1  1245					 ; zig-zag ordering
+1  1246	00000A24  00 01	08 10 09 02 03+	 zzo db	00,01,08,16,09,02,03,10
+   1247		  0A
+1  1248	00000A2C  11 18	20 19 12 0B 04+	     db	17,24,32,25,18,11,04,05
+   1249		  05
+1  1250	00000A34  0C 13	1A 21 28 30 29+	     db	12,19,26,33,40,48,41,34
+   1251		  22
+1  1252	00000A3C  1B 14	0D 06 07 0E 15+	     db	27,20,13,06,07,14,21,28
+   1253		  1C
+1  1254	00000A44  23 2A	31 38 39 32 2B+	     db	35,42,49,56,57,50,43,36
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 23
+webview.asm
+
+
+
+   1255		  24
+1  1256	00000A4C  1D 16	0F 17 1E 25 2C+	     db	29,22,15,23,30,37,44,51
+   1257		  33
+1  1258	00000A54  3A 3B	34 2D 26 1F 27+	     db	58,59,52,45,38,31,39,46
+   1259		  2E
+1  1260	00000A5C  35 3C	3D 36 2F 37 3E+	     db	53,60,61,54,47,55,62,63
+   1261		  3F
+1  1262
+1  1263	00000A64			 dataseg
+1  1264	00000A64  00			 GoodImage db 0
+1  1265
+1  1266	00000A65			 dataseg
+1  1267	00000A65  00000000		 CntRestart dd 0
+1  1268	00000A69  00000000		 UseRestart dd 0
+1  1269
+1  1270	00000A6D			 udataseg
+1  1271	0000040C  03*(????????)		 dcValue dd 3 dup(?)
+1  1272
+1  1273	00000418			 codeseg
+1  1274	00000414			 proc decoder near
+1  1275					 ; clear mcu values
+1  1276	00000414  2B C0			   sub eax,eax ; zero
+1  1277	00000416  B9 00000100		   mov ecx,4*64	; dwords
+1  1278	0000041B  BF 00000000r		   mov edi,offset(mcu)
+1  1279	00000420  F3> AB		   rep stosd ; clear
+1  1280					 ; fetch huffman state
+1  1281	00000422  A1 00000400r		   mov eax,[hcInBits]
+1  1282	00000427  8B 3D	00000404r	   mov edi,[hcOffset]
+1  1283	0000042D  8B 0D	00000408r	   mov ecx,[hcStatus]
+1  1284					 ; point to first matrix
+1  1285	00000433  2B ED			   sub ebp,ebp ; offset
+1  1286					 ; setup luminance tables
+1  1287	00000435  2B F6			   sub esi,esi ; offset
+1  1288	00000437			 label NextDCdecode near
+1  1289					 ; decode dc huffman code
+1  1290	00000437			 label VerifyBits0 near
+1  1291					 ; check enough	bits present
+1  1292	00000437  80 F9	10		   cmp cl,16 ; maximum size
+1  1293	0000043A  73 1B			   jnb EndVerifyBits0 ;	ok
+1  1294					 ; obtain additional bits
+1  1295	0000043C  C1 E0	08		   shl eax,8 ; alignment
+1  1296	0000043F  8A 87	0004B672r	   mov al,[outBuffer+edi]
+1  1297	00000445  47			   inc edi ; next position
+1  1298					 ; disregard stuffed zero byte
+1  1299	00000446  66| 81 BF 0004B671r +	   cmp [word(outBuffer+edi-1)],00FFh
+   1300		  00FF
+1  1301	0000044F  75 01			   jne EndSkipZero0 ; use byte
+1  1302	00000451  47			   inc edi ; next position
+1  1303	00000452			 label EndSkipZero0 near
+1  1304	00000452  80 C1	08		   add cl,8 ; bits per byte
+1  1305	00000455  EB E0			   jmp VerifyBits0 ; check
+1  1306	00000457			 label EndVerifyBits0 near
+1  1307					 ; determine first 0 bit
+1  1308	00000457  2B DB			   sub ebx,ebx ; zeroes
+1  1309	00000459  D3 C8			   ror eax,cl ;	alignment
+1  1310	0000045B  0F A4	C3 10		   shld	ebx,eax,16 ; string
+1  1311	0000045F  F7 D3			   not ebx ; first 1 bit
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 24
+webview.asm
+
+
+
+1  1312	00000461  66| 0F BD D3		   bsr dx,bx ; bit index
+1  1313	00000465  F7 D3			   not ebx ; first 0 bit
+1  1314					 ; determine decode table
+1  1315	00000467  80 FA	0D		   cmp dl,13 ; boundary
+1  1316	0000046A  76 21			   jna dcLongTable
+1  1317					 ; access short	tables
+1  1318	0000046C  51			   push	ecx ; save reg
+1  1319	0000046D  8A CA			   mov cl,dl ; pos 0 bit
+1  1320	0000046F  B6 0F			   mov dh,15 ; maximum pos
+1  1321	00000471  80 E9	02		   sub cl,2 ; pos index	bits
+1  1322	00000474  2A F2			   sub dh,dl ; table number
+1  1323	00000476  D3 EB			   shr ebx,cl ;	align index
+1  1324	00000478  C1 EA	06		   shr edx,6 ; align number
+1  1325	0000047B  59			   pop ecx ; restore reg
+1  1326	0000047C  83 E2	04		   and edx,04h ; number
+1  1327	0000047F  83 E3	03		   and ebx,03h ; index
+1  1328	00000482  33 DA			   xor ebx,edx ; address
+1  1329	00000484  8A 9C	1E 00000434r	   mov bl,[ydd+esi+ebx]
+1  1330	0000048B  EB 0E			   jmp EndDCdecode
+1  1331	0000048D			 label dcLongTable near
+1  1332					 ; access longer table
+1  1333	0000048D  B3 0D			   mov bl,13 ; maximum pos
+1  1334	0000048F  2A DA			   sub bl,dl ; table index
+1  1335	00000491  83 E3	0F		   and ebx,0Fh ; address
+1  1336	00000494  8A 9C	1E 0000043Cr	   mov bl,[ydt+esi+ebx]
+1  1337	0000049B			 label EndDCDecode near
+1  1338					 ; check valid symbol
+1  1339	0000049B  80 FB	0E		   cmp bl,0Eh ;	<BAD>
+1  1340	0000049E  75 0C			   jne dcValid ; ok
+1  1341	000004A0  C6 05	00000A64r 00	   mov [GoodImage],0
+1  1342	000004A7  E9 00000201		   jmp EndDecoder
+1  1343	000004AC			 label dcValid near
+1  1344					 ; strip huffman code
+1  1345	000004AC  D3 C0			   rol eax,cl ;	alignment
+1  1346	000004AE  2A 8C	1E 00000100r	   sub cl,[yds+esi+ebx]
+1  1347					 ; check data available
+1  1348	000004B5  2B D2			   sub edx,edx ; zero
+1  1349	000004B7  80 FB	00		   cmp bl,00h ;	minimum
+1  1350	000004BA  76 34			   jna ApplyReference
+1  1351					 ; obtain dc huffman data
+1  1352	000004BC			 label VerifyBits1 near
+1  1353					 ; check enough	bits present
+1  1354	000004BC  80 F9	0B		   cmp cl,11 ; maximum size
+1  1355	000004BF  73 1B			   jnb EndVerifyBits1 ;	ok
+1  1356					 ; obtain additional bits
+1  1357	000004C1  C1 E0	08		   shl eax,8 ; alignment
+1  1358	000004C4  8A 87	0004B672r	   mov al,[outBuffer+edi]
+1  1359	000004CA  47			   inc edi ; next position
+1  1360					 ; disregard stuffed zero byte
+1  1361	000004CB  66| 81 BF 0004B671r +	   cmp [word(outBuffer+edi-1)],00FFh
+   1362		  00FF
+1  1363	000004D4  75 01			   jne EndSkipZero1 ; use byte
+1  1364	000004D6  47			   inc edi ; next position
+1  1365	000004D7			 label EndSkipZero1 near
+1  1366	000004D7  80 C1	08		   add cl,8 ; bits per byte
+1  1367	000004DA  EB E0			   jmp VerifyBits1 ; check
+1  1368	000004DC			 label EndVerifyBits1 near
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 25
+webview.asm
+
+
+
+1  1369					 ; obtain dc data value
+1  1370	000004DC  D3 C8			   ror eax,cl ;	alignment
+1  1371	000004DE  F5			   cmc ; negative borrow
+1  1372	000004DF  83 DA	00		   sbb edx,0 ; negative
+1  1373	000004E2  51			   push	ecx ; save reg
+1  1374	000004E3  8A CB			   mov cl,bl ; data size
+1  1375	000004E5  0F A5	C2		   shld	edx,eax,cl ; value
+1  1376	000004E8  59			   pop ecx ; restore reg
+1  1377	000004E9  83 D2	00		   adc edx,0 ; negative
+1  1378					 ; strip dc data value
+1  1379	000004EC  D3 C0			   rol eax,cl ;	alignment
+1  1380	000004EE  2A CB			   sub cl,bl ; data size
+1  1381	000004F0			 label ApplyReference near
+1  1382					 ; add reference dc value
+1  1383	000004F0  8B DD			   mov ebx,ebp ; matrix	index
+1  1384	000004F2  C1 EB	06		   shr ebx,6 ; derive index
+1  1385	000004F5  83 EB	01		   sub ebx,1 ; adjust index
+1  1386	000004F8  83 D3	00		   adc ebx,0 ; proper index
+1  1387	000004FB  03 14	9D 0000040Cr	   add edx,[dcValue+ebx*4]
+1  1388					 ; set reference dc value
+1  1389	00000502  89 14	9D 0000040Cr	   mov [dcValue+ebx*4],edx
+1  1390					 ; apply dequantize factor
+1  1391	00000509  50			   push	eax ; save register
+1  1392	0000050A  8B 86	00000334r	   mov eax,[yqi+esi] ; first
+1  1393	00000510  F7 EA			   imul	edx ; DC*2E0*DQ*2E23
+1  1394	00000512  0F A4	C2 19		   shld	edx,eax,25 ; DC*2E16
+1  1395	00000516  58			   pop eax ; restore register
+1  1396					 ; store dc component value
+1  1397	00000517  89 14	AD 00000000r	   mov [mcu+ebp*4],edx
+1  1398					 ; bump	to next	element
+1  1399	0000051E  8D 6D	01		   lea ebp,[ebp+1] ; offset
+1  1400	00000521			 label NextACdecode near
+1  1401					 ; decode ac huffman code
+1  1402	00000521			 label VerifyBits2 near
+1  1403					 ; check enough	bits present
+1  1404	00000521  80 F9	10		   cmp cl,16 ; maximum size
+1  1405	00000524  73 1B			   jnb EndVerifyBits2 ;	ok
+1  1406					 ; obtain additional bits
+1  1407	00000526  C1 E0	08		   shl eax,8 ; alignment
+1  1408	00000529  8A 87	0004B672r	   mov al,[outBuffer+edi]
+1  1409	0000052F  47			   inc edi ; next position
+1  1410					 ; disregard stuffed zero byte
+1  1411	00000530  66| 81 BF 0004B671r +	   cmp [word(outBuffer+edi-1)],00FFh
+   1412		  00FF
+1  1413	00000539  75 01			   jne EndSkipZero2 ; use byte
+1  1414	0000053B  47			   inc edi ; next position
+1  1415	0000053C			 label EndSkipZero2 near
+1  1416	0000053C  80 C1	08		   add cl,8 ; bits per byte
+1  1417	0000053F  EB E0			   jmp VerifyBits2 ; check
+1  1418	00000541			 label EndVerifyBits2 near
+1  1419					 ; determine first 0 bit
+1  1420	00000541  2B DB			   sub ebx,ebx ; zeroes
+1  1421	00000543  D3 C8			   ror eax,cl ;	alignment
+1  1422	00000545  0F A4	C3 10		   shld	ebx,eax,16 ; string
+1  1423	00000549  F7 D3			   not ebx ; first 1 bit
+1  1424	0000054B  66| 0F BD D3		   bsr dx,bx ; bit index
+1  1425	0000054F  F7 D3			   not ebx ; first 0 bit
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 26
+webview.asm
+
+
+
+1  1426					 ; determine decode table
+1  1427	00000551  80 FA	06		   cmp dl,6 ; boundary
+1  1428	00000554  76 21			   jna acLongTable
+1  1429					 ; access short	tables
+1  1430	00000556  51			   push	ecx ; save reg
+1  1431	00000557  8A CA			   mov cl,dl ; pos 0 bit
+1  1432	00000559  B6 0F			   mov dh,15 ; maximum pos
+1  1433	0000055B  80 E9	03		   sub cl,3 ; pos index	bits
+1  1434	0000055E  2A F2			   sub dh,dl ; table number
+1  1435	00000560  D3 EB			   shr ebx,cl ;	align index
+1  1436	00000562  C1 EA	05		   shr edx,5 ; align number
+1  1437	00000565  59			   pop ecx ; restore reg
+1  1438	00000566  83 E2	78		   and edx,78h ; number
+1  1439	00000569  83 E3	07		   and ebx,07h ; index
+1  1440	0000056C  33 DA			   xor ebx,edx ; address
+1  1441	0000056E  8A 9C	1E 0000044Ar	   mov bl,[yad+esi+ebx]
+1  1442	00000575  EB 0A			   jmp EndACdecode
+1  1443	00000577			 label acLongTable near
+1  1444					 ; access longer table
+1  1445	00000577  83 E3	7F		   and ebx,7Fh ; address
+1  1446	0000057A  8A 9C	1E 00000492r	   mov bl,[yat+esi+ebx]
+1  1447	00000581			 label EndACDecode near
+1  1448					 ; check valid symbol
+1  1449	00000581  80 FB	0E		   cmp bl,0Eh ;	<BAD>
+1  1450	00000584  75 0C			   jne acValid ; ok
+1  1451	00000586  C6 05	00000A64r 00	   mov [GoodImage],0
+1  1452	0000058D  E9 0000011B		   jmp EndDecoder
+1  1453	00000592			 label acValid near
+1  1454					 ; strip huffman code
+1  1455	00000592  D3 C0			   rol eax,cl ;	alignment
+1  1456	00000594  2A 8C	1E 00000124r	   sub cl,[yas+esi+ebx]
+1  1457					 ; check end of	block
+1  1458	0000059B  80 FB	00		   cmp bl,00h ;	<EOB>
+1  1459	0000059E  75 05			   jne NotEndOfBlock
+1  1460					 ; skip	to last	position
+1  1461	000005A0  83 CD	3F		   or ebp,03Fh ; complete
+1  1462	000005A3  EB 74			   jmp EndDecode ; done
+1  1463	000005A5			 label NotEndOfBlock near
+1  1464					 ; check insert	zeroes
+1  1465	000005A5  80 FB	0F		   cmp bl,0Fh ;	<ZRL>
+1  1466	000005A8  75 05			   jne NotSkipZeroes
+1  1467					 ; skip	to next	position
+1  1468	000005AA  83 C5	0F		   add ebp,00Fh	; sixteen
+1  1469	000005AD  EB 6A			   jmp EndDecode ; done
+1  1470	000005AF			 label NotSkipZeroes near
+1  1471					 ; verify data available
+1  1472	000005AF  76 68			   jna EndDecode ; absent
+1  1473					 ; skip	leading	zeroes
+1  1474	000005B1  8A D3			   mov dl,bl ; symbol
+1  1475	000005B3  83 E2	0F		   and edx,0Fh ; zeroes
+1  1476	000005B6  03 EA			   add ebp,edx ; counter
+1  1477					 ; obtain ac huffman data
+1  1478	000005B8			 label VerifyBits3 near
+1  1479					 ; check enough	bits present
+1  1480	000005B8  80 F9	0B		   cmp cl,11 ; maximum size
+1  1481	000005BB  73 1B			   jnb EndVerifyBits3 ;	ok
+1  1482					 ; obtain additional bits
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 27
+webview.asm
+
+
+
+1  1483	000005BD  C1 E0	08		   shl eax,8 ; alignment
+1  1484	000005C0  8A 87	0004B672r	   mov al,[outBuffer+edi]
+1  1485	000005C6  47			   inc edi ; next position
+1  1486					 ; disregard stuffed zero byte
+1  1487	000005C7  66| 81 BF 0004B671r +	   cmp [word(outBuffer+edi-1)],00FFh
+   1488		  00FF
+1  1489	000005D0  75 01			   jne EndSkipZero3 ; use byte
+1  1490	000005D2  47			   inc edi ; next position
+1  1491	000005D3			 label EndSkipZero3 near
+1  1492	000005D3  80 C1	08		   add cl,8 ; bits per byte
+1  1493	000005D6  EB E0			   jmp VerifyBits3 ; check
+1  1494	000005D8			 label EndVerifyBits3 near
+1  1495					 ; obtain ac data value
+1  1496	000005D8  C1 EB	04		   shr ebx,4 ; data size
+1  1497	000005DB  2B D2			   sub edx,edx ; zero bits
+1  1498	000005DD  D3 C8			   ror eax,cl ;	alignment
+1  1499	000005DF  F5			   cmc ; negative borrow
+1  1500	000005E0  83 DA	00		   sbb edx,0 ; negative
+1  1501	000005E3  51			   push	ecx ; save reg
+1  1502	000005E4  8A CB			   mov cl,bl ; data size
+1  1503	000005E6  0F A5	C2		   shld	edx,eax,cl ; value
+1  1504	000005E9  59			   pop ecx ; restore reg
+1  1505	000005EA  83 D2	00		   adc edx,0 ; negative
+1  1506					 ; strip ac data value
+1  1507	000005ED  D3 C0			   rol eax,cl ;	alignment
+1  1508	000005EF  2A CB			   sub cl,bl ; data size
+1  1509					 ; prepare zigzag sequence
+1  1510	000005F1  8B DD			   mov ebx,ebp ; matrix	index
+1  1511	000005F3  8A EB			   mov ch,bl ; matrix index
+1  1512	000005F5  80 E3	3F		   and bl,03Fh ; zigzag	index
+1  1513	000005F8  80 E5	C0		   and ch,0C0h ; isolate matrix
+1  1514	000005FB  8A 9B	00000A24r	   mov bl,[zzo+ebx] ; sequence
+1  1515					 ; apply dequantize factor
+1  1516	00000601  50			   push	eax ; save register
+1  1517	00000602  8B 84	9E 00000334r	   mov eax,[yqi+esi+ebx*4]
+1  1518	00000609  F7 EA			   imul	edx ; AC*2E0*DQ*2E23
+1  1519	0000060B  0F A4	C2 19		   shld	edx,eax,25 ; AC*2E16
+1  1520	0000060F  58			   pop eax ; restore register
+1  1521					 ; store ac component value
+1  1522	00000610  32 DD			   xor bl,ch ; use matrix
+1  1523	00000612  89 14	9D 00000000r	   mov [mcu+ebx*4],edx
+1  1524	00000619			 label EndDecode near
+1  1525					 ; bump	to next	element
+1  1526	00000619  8D 6D	01		   lea ebp,[ebp+1] ; offset
+1  1527	0000061C  F7 C5	0000003F	   test	ebp,03Fh ; more
+1  1528	00000622  0F 85	FFFFFEF9	   jnz NextACdecode
+1  1529					 ; start next luminance
+1  1530	00000628  81 FD	00000080	   cmp ebp,080h	; done
+1  1531	0000062E  0F 82	FFFFFE03	   jb NextDCdecode
+1  1532					 ; start next chrominance
+1  1533	00000634  BE 00000512		   mov esi,cqi-yqi ; offset
+1  1534	00000639  81 FD	00000100	   cmp ebp,100h	; done
+1  1535	0000063F  0F 82	FFFFFDF2	   jb NextDCdecode
+1  1536					 ; check restart markers
+1  1537	00000645  83 3D	00000A69r 00	   cmp [UseRestart],0
+1  1538	0000064C  76 5F			   jna EndDecoder
+1  1539	0000064E  FF 0D	00000A65r	   dec [CntRestart]
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 28
+webview.asm
+
+
+
+1  1540	00000654  75 57			   jnz EndDecoder
+1  1541	00000656  8B 15	00000A69r	   mov edx,[UseRestart]
+1  1542	0000065C  89 15	00000A65r	   mov [CntRestart],edx
+1  1543	00000662			 label VerifyBits4 near
+1  1544					 ; check enough	bits present
+1  1545	00000662  80 F9	10		   cmp cl,16 ; maximum size
+1  1546	00000665  73 1B			   jnb EndVerifyBits4 ;	ok
+1  1547					 ; obtain additional bits
+1  1548	00000667  C1 E0	08		   shl eax,8 ; alignment
+1  1549	0000066A  8A 87	0004B672r	   mov al,[outBuffer+edi]
+1  1550	00000670  47			   inc edi ; next position
+1  1551					 ; disregard stuffed zero byte
+1  1552	00000671  66| 81 BF 0004B671r +	   cmp [word(outBuffer+edi-1)],00FFh
+   1553		  00FF
+1  1554	0000067A  75 01			   jne EndSkipZero4 ; use byte
+1  1555	0000067C  47			   inc edi ; next position
+1  1556	0000067D			 label EndSkipZero4 near
+1  1557	0000067D  80 C1	08		   add cl,8 ; bits per byte
+1  1558	00000680  EB E0			   jmp VerifyBits4 ; check
+1  1559	00000682			 label EndVerifyBits4 near
+1  1560					 ; skip	filler byte present
+1  1561	00000682  66| 3D FFFF		   cmp ax,0FFFFh ; filler
+1  1562	00000686  75 05			   jne CheckMarker ; no
+1  1563	00000688  80 E9	08		   sub cl,8 ; bits per byte
+1  1564	0000068B  EB D5			   jmp VerifyBits4 ; skip
+1  1565	0000068D			 label CheckMarker near
+1  1566					 ; verify restart marker
+1  1567	0000068D  80 FC	FF		   cmp ah,0FFh ; marker
+1  1568	00000690  72 1B			   jb EndDecoder ; no
+1  1569	00000692  3C D0			   cmp al,0D0h ; restart
+1  1570	00000694  72 17			   jb EndDecoder ; no
+1  1571	00000696  3C D7			   cmp al,0D7h ; restart
+1  1572	00000698  77 13			   ja EndDecoder ; no
+1  1573	0000069A			 label ResetDecoder near
+1  1574	0000069A  2B C0			   sub eax,eax ; zero
+1  1575	0000069C  A3 0000040Cr		   mov [dcValue+0],eax
+1  1576	000006A1  A3 00000410r		   mov [dcValue+4],eax
+1  1577	000006A6  A3 00000414r		   mov [dcValue+8],eax
+1  1578	000006AB  2B C9			   sub ecx,ecx ; zero
+1  1579	000006AD			 label EndDecoder near
+1  1580					 ; store huffman state
+1  1581	000006AD  89 3D	00000404r	   mov [hcOffset],edi
+1  1582	000006B3  89 0D	00000408r	   mov [hcStatus],ecx
+1  1583	000006B9  A3 00000400r		   mov [hcInBits],eax
+1  1584	000006BE  C3			   ret ; return
+1  1585	000006BF			 endp decoder
+1  1586
+1  1587	000006BF			 codeseg
+1  1588	000006BF			 proc encoder near
+1  1589					 ; fetch huffman state
+1  1590	000006BF  8B 3D	00000404r	   mov edi,[hcOffset]
+1  1591	000006C5  8B 0D	00000408r	   mov ecx,[hcStatus]
+1  1592					 ; point to first matrix
+1  1593	000006CB  2B ED			   sub ebp,ebp ; offset
+1  1594					 ; setup luminance tables
+1  1595	000006CD  2B F6			   sub esi,esi ; offset
+1  1596	000006CF			 label NextDCelement near
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 29
+webview.asm
+
+
+
+1  1597					 ; dc component	quantization
+1  1598	000006CF  8B 14	AD 00000000r	   mov edx,[mcu+ebp*4] ; value
+1  1599					 ; apply quantization factor
+1  1600	000006D6  8B 86	00000000r	   mov eax,[yqt+esi] ; first
+1  1601	000006DC  F7 EA			   imul	edx ; DC*2E18*QF*2E26
+1  1602	000006DE  C1 FA	0F		   sar edx,15 ;	keep 12	bits
+1  1603	000006E1  83 D2	00		   adc edx,0 ; round result
+1  1604					 ; fetch previous dc value
+1  1605	000006E4  8B DD			   mov ebx,ebp ; matrix	index
+1  1606	000006E6  C1 EB	06		   shr ebx,6 ; derive index
+1  1607	000006E9  83 EB	01		   sub ebx,1 ; adjust index
+1  1608	000006EC  83 D3	00		   adc ebx,0 ; proper index
+1  1609	000006EF  8B 04	9D 0000040Cr	   mov eax,[dcValue+ebx*4]
+1  1610					 ; store current dc value
+1  1611	000006F6  89 14	9D 0000040Cr	   mov [dcValue+ebx*4],edx
+1  1612					 ; huffman code	generation
+1  1613	000006FD  2B D0			   sub edx,eax ; new-old
+1  1614	000006FF  75 04			   jnz dcNonZeroValue
+1  1615					 ; handle dc zero value
+1  1616	00000701  2B DB			   sub ebx,ebx ; no data
+1  1617	00000703  EB 0C			   jmp dcHuffman ; code
+1  1618	00000705			 label dcNonZeroValue near
+1  1619					 ; determine dc	value size
+1  1620	00000705  8B C2			   mov eax,edx ; dc value
+1  1621	00000707  79 03			   jns dcScanBits ; positive
+1  1622	00000709  F7 D8			   neg eax ; make positive
+1  1623	0000070B  4A			   dec edx ; proper data
+1  1624	0000070C			 label dcScanBits near
+1  1625					 ; bit scan left to right
+1  1626	0000070C  66| 0F BD D8		   bsr bx,ax ; bit index
+1  1627	00000710  43			   inc ebx ; bit length
+1  1628	00000711			 label dcHuffman near
+1  1629					 ; get huffman state
+1  1630	00000711  8A C1			   mov al,cl ; string
+1  1631					 ; obtain huffman size
+1  1632	00000713  8A 8C	1E 00000100r	   mov cl,[yds+esi+ebx*1]
+1  1633	0000071A  D3 E0			   shl eax,cl ;	make room
+1  1634					 ; append huffman code
+1  1635	0000071C  66| 33 84 5E	      +	   xor ax,[ydc+esi+ebx*2]
+   1636		  0000010Cr
+1  1637	00000724  02 CD			   add cl,ch ; bit length
+1  1638					 ; try to emit next byte
+1  1639	00000726  80 F9	08		   cmp cl,8 ; bits per byte
+1  1640	00000729  72 36			   jb dcNotEmitCode ; too few
+1  1641	0000072B  80 E9	08		   sub cl,8 ; bits per byte
+1  1642	0000072E  D3 C8			   ror eax,cl ;	alignment
+1  1643	00000730  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1644	00000736  47			   inc edi ; next position
+1  1645					 ; cater for zero stuffing
+1  1646	00000737  34 FF			   xor al,0FFh ; ones/zeros
+1  1647	00000739  75 07			   jnz dcEndZeroCode1 ;	no
+1  1648	0000073B  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1649	00000741  47			   inc edi ; next position
+1  1650	00000742			 label dcEndZeroCode1 near
+1  1651					 ; try to emit next byte
+1  1652	00000742  80 F9	08		   cmp cl,8 ; bits per byte
+1  1653	00000745  72 18			   jb dcEndEmitCode ; too few
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 30
+webview.asm
+
+
+
+1  1654	00000747  80 E9	08		   sub cl,8 ; bits per byte
+1  1655	0000074A  C1 C0	08		   rol eax,8 ; alignment
+1  1656	0000074D  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1657	00000753  47			   inc edi ; next position
+1  1658					 ; cater for zero stuffing
+1  1659	00000754  34 FF			   xor al,0FFh ; ones/zeros
+1  1660	00000756  75 07			   jnz dcEndZeroCode2 ;	no
+1  1661	00000758  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1662	0000075E  47			   inc edi ; next position
+1  1663	0000075F			 label dcEndZeroCode2 near
+1  1664					 ; cannot emit another byte
+1  1665	0000075F			 label dcEndEmitCode near
+1  1666					 ; realign on bit boundary
+1  1667	0000075F  D3 C0			   rol eax,cl ;	position
+1  1668	00000761			 label dcNotEmitCode near
+1  1669					 ; append huffman data
+1  1670	00000761  85 DB			   test	ebx,ebx	; present
+1  1671	00000763  74 46			   jz dcNotEmitData ; no
+1  1672	00000765  8A E9			   mov ch,cl ; bit length
+1  1673	00000767  8A CB			   mov cl,bl ; bit length
+1  1674	00000769  D3 CA			   ror edx,cl ;	alignment
+1  1675	0000076B  0F A5	D0		   shld	eax,edx,cl ; append
+1  1676	0000076E  02 CD			   add cl,ch ; bit length
+1  1677					 ; try to emit next byte
+1  1678	00000770  80 F9	08		   cmp cl,8 ; bits per byte
+1  1679	00000773  72 36			   jb dcNotEmitData ; too few
+1  1680	00000775  80 E9	08		   sub cl,8 ; bits per byte
+1  1681	00000778  D3 C8			   ror eax,cl ;	alignment
+1  1682	0000077A  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1683	00000780  47			   inc edi ; next position
+1  1684					 ; cater for zero stuffing
+1  1685	00000781  34 FF			   xor al,0FFh ; ones/zeros
+1  1686	00000783  75 07			   jnz dcEndZeroData1 ;	no
+1  1687	00000785  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1688	0000078B  47			   inc edi ; next position
+1  1689	0000078C			 label dcEndZeroData1 near
+1  1690					 ; try to emit next byte
+1  1691	0000078C  80 F9	08		   cmp cl,8 ; bits per byte
+1  1692	0000078F  72 18			   jb dcEndEmitData ; too few
+1  1693	00000791  80 E9	08		   sub cl,8 ; bits per byte
+1  1694	00000794  C1 C0	08		   rol eax,8 ; alignment
+1  1695	00000797  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1696	0000079D  47			   inc edi ; next position
+1  1697					 ; cater for zero stuffing
+1  1698	0000079E  34 FF			   xor al,0FFh ; ones/zeros
+1  1699	000007A0  75 07			   jnz dcEndZeroData2 ;	no
+1  1700	000007A2  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1701	000007A8  47			   inc edi ; next position
+1  1702	000007A9			 label dcEndZeroData2 near
+1  1703					 ; cannot emit another byte
+1  1704	000007A9			 label dcEndEmitData near
+1  1705					 ; realign on bit boundary
+1  1706	000007A9  D3 C0			   rol eax,cl ;	position
+1  1707	000007AB			 label dcNotEmitData near
+1  1708					 ; update huffman state
+1  1709	000007AB  8A E9			   mov ch,cl ; length
+1  1710	000007AD  8A C8			   mov cl,al ; string
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 31
+webview.asm
+
+
+
+1  1711					 ; bump	to next	element
+1  1712	000007AF  8D 6D	01		   lea ebp,[ebp+1] ; offset
+1  1713	000007B2			 label NextACelement near
+1  1714					 ; prepare zigzag sequence
+1  1715	000007B2  8B DD			   mov ebx,ebp ; matrix	index
+1  1716	000007B4  80 E3	3F		   and bl,03Fh ; zigzag	index
+1  1717	000007B7  8A 9B	00000A24r	   mov bl,[zzo+ebx] ; sequence
+1  1718					 ; ac component	quantization
+1  1719	000007BD  8B D5			   mov edx,ebp ; matrix	index
+1  1720	000007BF  80 E2	C0		   and dl,0C0h ; isolate matrix
+1  1721	000007C2  32 D3			   xor dl,bl ; zigzag sequence
+1  1722	000007C4  8B 14	95 00000000r	   mov edx,[mcu+edx*4] ; value
+1  1723					 ; apply quantization factor
+1  1724	000007CB  8B 84	9E 00000000r	   mov eax,[yqt+esi+ebx*4]
+1  1725	000007D2  F7 EA			   imul	edx ; AC*2E18*QF*2E26
+1  1726	000007D4  C1 FA	0F		   sar edx,15 ;	keep 12	bits
+1  1727	000007D7  83 D2	00		   adc edx,0 ; round result
+1  1728					 ; huffman code	generation
+1  1729	000007DA  85 D2			   test	edx,edx	; value
+1  1730	000007DC  75 19			   jnz acNonZeroValue
+1  1731					 ; update zero counter
+1  1732	000007DE  81 C1	04000000	   add ecx,04000000h
+1  1733	000007E4  80 FB	3F		   cmp bl,03Fh ; done
+1  1734	000007E7  0F 85	000000E5	   jne EndEncode ; next
+1  1735					 ; setup EOB huffman code
+1  1736	000007ED  2B DB			   sub ebx,ebx ; no data
+1  1737	000007EF  81 E1	0000FFFF	   and ecx,0FFFFh ; reset
+1  1738	000007F5  EB 31			   jmp acHuffman ; code
+1  1739	000007F7			 label acNonZeroValue near
+1  1740					 ; setup ZRL huffman code
+1  1741	000007F7  B3 0F			   mov bl,0Fh ;	special
+1  1742	000007F9			 label VerifyCounter near
+1  1743					 ; verify zero counter
+1  1744	000007F9  81 F9	40000000	   cmp ecx,40000000h
+1  1745	000007FF  72 08			   jb ValidZeroCount
+1  1746					 ; update zero counter
+1  1747	00000801  81 E9	40000000	   sub ecx,40000000h
+1  1748	00000807  EB 1F			   jmp acHuffman ; code
+1  1749	00000809			 label ValidZeroCount near
+1  1750					 ; determine ac	value size
+1  1751	00000809  85 D2			   test	edx,edx	; value
+1  1752	0000080B  8B C2			   mov eax,edx ; ac value
+1  1753	0000080D  79 03			   jns acScanBits ; positive
+1  1754	0000080F  F7 D8			   neg eax ; make positive
+1  1755	00000811  4A			   dec edx ; proper data
+1  1756	00000812			 label acScanBits near
+1  1757					 ; bit scan left to right
+1  1758	00000812  66| 0F BD D8		   bsr bx,ax ; bit index
+1  1759	00000816  43			   inc ebx ; bit length
+1  1760					 ; concatenate zero counter
+1  1761	00000817  8D 04	8D 00000000	   lea eax,[ecx*4] ; count
+1  1762	0000081E  81 E1	0000FFFF	   and ecx,0FFFFh ; reset
+1  1763	00000824  0F A4	C3 04		   shld	ebx,eax,4 ; index
+1  1764	00000828			 label acHuffman near
+1  1765					 ; get huffman state
+1  1766	00000828  8A C1			   mov al,cl ; string
+1  1767					 ; obtain huffman size
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 32
+webview.asm
+
+
+
+1  1768	0000082A  8A 8C	1E 00000124r	   mov cl,[yas+esi+ebx*1]
+1  1769	00000831  D3 E0			   shl eax,cl ;	make room
+1  1770					 ; append huffman code
+1  1771	00000833  66| 33 84 5E	      +	   xor ax,[yac+esi+ebx*2]
+   1772		  000001D4r
+1  1773	0000083B  02 CD			   add cl,ch ; bit length
+1  1774					 ; try to emit next byte
+1  1775	0000083D  80 F9	08		   cmp cl,8 ; bits per byte
+1  1776	00000840  72 36			   jb acNotEmitCode ; too few
+1  1777	00000842  80 E9	08		   sub cl,8 ; bits per byte
+1  1778	00000845  D3 C8			   ror eax,cl ;	alignment
+1  1779	00000847  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1780	0000084D  47			   inc edi ; next position
+1  1781					 ; cater for zero stuffing
+1  1782	0000084E  34 FF			   xor al,0FFh ; ones/zeros
+1  1783	00000850  75 07			   jnz acEndZeroCode1 ;	no
+1  1784	00000852  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1785	00000858  47			   inc edi ; next position
+1  1786	00000859			 label acEndZeroCode1 near
+1  1787					 ; try to emit next byte
+1  1788	00000859  80 F9	08		   cmp cl,8 ; bits per byte
+1  1789	0000085C  72 18			   jb acEndEmitCode ; too few
+1  1790	0000085E  80 E9	08		   sub cl,8 ; bits per byte
+1  1791	00000861  C1 C0	08		   rol eax,8 ; alignment
+1  1792	00000864  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1793	0000086A  47			   inc edi ; next position
+1  1794					 ; cater for zero stuffing
+1  1795	0000086B  34 FF			   xor al,0FFh ; ones/zeros
+1  1796	0000086D  75 07			   jnz acEndZeroCode2 ;	no
+1  1797	0000086F  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1798	00000875  47			   inc edi ; next position
+1  1799	00000876			 label acEndZeroCode2 near
+1  1800					 ; cannot emit another byte
+1  1801	00000876			 label acEndEmitCode near
+1  1802					 ; realign on bit boundary
+1  1803	00000876  D3 C0			   rol eax,cl ;	position
+1  1804	00000878			 label acNotEmitCode near
+1  1805					 ; update huffman state
+1  1806	00000878  8A E9			   mov ch,cl ; length
+1  1807	0000087A  8A C8			   mov cl,al ; string
+1  1808					 ; handle ZRL hufman code
+1  1809	0000087C  80 FB	0F		   cmp bl,0Fh ;	special
+1  1810	0000087F  0F 84	FFFFFF74	   je VerifyCounter
+1  1811					 ; append huffman data
+1  1812	00000885  C1 EB	04		   shr ebx,04h ; present
+1  1813	00000888  74 48			   jz EndEncode	; absent
+1  1814	0000088A  8A CB			   mov cl,bl ; bit length
+1  1815	0000088C  D3 CA			   ror edx,cl ;	alignment
+1  1816	0000088E  0F A5	D0		   shld	eax,edx,cl ; append
+1  1817	00000891  02 CD			   add cl,ch ; bit length
+1  1818					 ; try to emit next byte
+1  1819	00000893  80 F9	08		   cmp cl,8 ; bits per byte
+1  1820	00000896  72 36			   jb acNotEmitData ; too few
+1  1821	00000898  80 E9	08		   sub cl,8 ; bits per byte
+1  1822	0000089B  D3 C8			   ror eax,cl ;	alignment
+1  1823	0000089D  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1824	000008A3  47			   inc edi ; next position
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 33
+webview.asm
+
+
+
+1  1825					 ; cater for zero stuffing
+1  1826	000008A4  34 FF			   xor al,0FFh ; ones/zeros
+1  1827	000008A6  75 07			   jnz acEndZeroData1 ;	no
+1  1828	000008A8  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1829	000008AE  47			   inc edi ; next position
+1  1830	000008AF			 label acEndZeroData1 near
+1  1831					 ; try to emit next byte
+1  1832	000008AF  80 F9	08		   cmp cl,8 ; bits per byte
+1  1833	000008B2  72 18			   jb acEndEmitData ; too few
+1  1834	000008B4  80 E9	08		   sub cl,8 ; bits per byte
+1  1835	000008B7  C1 C0	08		   rol eax,8 ; alignment
+1  1836	000008BA  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1837	000008C0  47			   inc edi ; next position
+1  1838					 ; cater for zero stuffing
+1  1839	000008C1  34 FF			   xor al,0FFh ; ones/zeros
+1  1840	000008C3  75 07			   jnz acEndZeroData2 ;	no
+1  1841	000008C5  88 87	0004B672r	   mov [outBuffer+edi],al
+1  1842	000008CB  47			   inc edi ; next position
+1  1843	000008CC			 label acEndZeroData2 near
+1  1844					 ; cannot emit another byte
+1  1845	000008CC			 label acEndEmitData near
+1  1846					 ; realign on bit boundary
+1  1847	000008CC  D3 C0			   rol eax,cl ;	position
+1  1848	000008CE			 label acNotEmitData near
+1  1849					 ; update huffman state
+1  1850	000008CE  8A E9			   mov ch,cl ; length
+1  1851	000008D0  8A C8			   mov cl,al ; string
+1  1852	000008D2			 label EndEncode near
+1  1853					 ; bump	to next	element
+1  1854	000008D2  8D 6D	01		   lea ebp,[ebp+1] ; offset
+1  1855	000008D5  F7 C5	0000003F	   test	ebp,03Fh ; more
+1  1856	000008DB  0F 85	FFFFFED1	   jnz NextACelement
+1  1857					 ; reset zero counter
+1  1858	000008E1  81 E1	0000FFFF	   and ecx,0000FFFFh
+1  1859					 ; start next luminance
+1  1860	000008E7  81 FD	00000080	   cmp ebp,080h	; done
+1  1861	000008ED  0F 82	FFFFFDDC	   jb NextDCelement
+1  1862					 ; start next chrominance
+1  1863	000008F3  BE 00000512		   mov esi,cqt-yqt ; offset
+1  1864	000008F8  81 FD	00000100	   cmp ebp,100h	; done
+1  1865	000008FE  0F 82	FFFFFDCB	   jb NextDCelement
+1  1866					 ; store huffman state
+1  1867	00000904  89 3D	00000404r	   mov [hcOffset],edi
+1  1868	0000090A  89 0D	00000408r	   mov [hcStatus],ecx
+1  1869	00000910  C3			   ret ; return
+1  1870	00000911			 endp encoder
+1  1871
+1  1872	00000911			 dataseg
+1  1873					 ; mcu 4:2:2 ordering
+1  1874	00000A6D  00 01	02 03 20 21 22+	 yyo db	00,01,02,03,32,33,34,35
+   1875		  23
+1  1876	00000A75  04 05	06 07 24 25 26+	     db	04,05,06,07,36,37,38,39
+   1877		  27
+1  1878	00000A7D  08 09	0A 0B 28 29 2A+	     db	08,09,10,11,40,41,42,43
+   1879		  2B
+1  1880	00000A85  0C 0D	0E 0F 2C 2D 2E+	     db	12,13,14,15,44,45,46,47
+   1881		  2F
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 34
+webview.asm
+
+
+
+1  1882	00000A8D  10 11	12 13 30 31 32+	     db	16,17,18,19,48,49,50,51
+   1883		  33
+1  1884	00000A95  14 15	16 17 34 35 36+	     db	20,21,22,23,52,53,54,55
+   1885		  37
+1  1886	00000A9D  18 19	1A 1B 38 39 3A+	     db	24,25,26,27,56,57,58,59
+   1887		  3B
+1  1888	00000AA5  1C 1D	1E 1F 3C 3D 3E+	     db	28,29,30,31,60,61,62,63
+   1889		  3F
+1  1890
+1  1891					 ; precalculated constant
+1  1892		  =02000000		 c128 =	33554432 ; 128*2E18
+1  1893
+1  1894					 ; precalculated ycc2rgb coefficients
+1  1895		  =160663C7		 gcb = 0369517511 ; 0.34414*2E30
+1  1896		  =2DB47842		 gcr = 0766801986 ; 0.71414*2E30
+1  1897		  =716872B0		 mcb = 1902670512 ; 1.772*2E30
+1  1898		  =59BA5E35		 mcr = 1505386037 ; 1.402*2E30
+1  1899
+1  1900	00000AAD			 codeseg
+1  1901	00000911			 proc jpg2rgb near
+1  1902	00000911  E8 00000143		   call	reader ; mjpg
+1  1903					 ; clear old dc	values
+1  1904	00000916  2B C0			   sub eax,eax ; zero
+1  1905	00000918  A3 0000040Cr		   mov [dcValue+0],eax
+1  1906	0000091D  A3 00000410r		   mov [dcValue+4],eax
+1  1907	00000922  A3 00000414r		   mov [dcValue+8],eax
+1  1908					 ; clear huffman state
+1  1909	00000927  A3 00000404r		   mov [hcOffset],eax
+1  1910	0000092C  A3 00000408r		   mov [hcStatus],eax
+1  1911					 ; read	image to build minimum coded units
+1  1912	00000931  BD 00176EF2r		   mov ebp,offset(rgbBuffer)+3*Ix*(Iy-1)
+1  1913	00000936  56			   push	esi ; save
+1  1914	00000937			 label ReadImage near
+1  1915					 ; set horizontal units
+1  1916	00000937  B1 28			   mov cl,Ix/16	; 4:2:2
+1  1917	00000939			 label ReadNextUnit near
+1  1918					 ; get minimum coded unit
+1  1919	00000939  55 51			   push	ebp ecx	; save
+1  1920	0000093B  E8 FFFFFAD4		   call	decoder	; huffman
+1  1921	00000940  E8 FFFFF8C9		   call	aanidct	; inverse
+1  1922	00000945  59 5D			   pop ecx ebp ; restore
+1  1923					 ; scan	minimum	coded unit
+1  1924	00000947  2B FF			   sub edi,edi ; mcu index
+1  1925	00000949			 label UnitRowNext near
+1  1926	00000949  B5 08			   mov ch,8 ; columns
+1  1927	0000094B			 label ycc2rgb near
+1  1928					 ; y2rgb midpoint shift
+1  1929	0000094B  0F B6	97 00000A6Dr	   movzx edx,[yyo+edi]
+1  1930	00000952  8B 1C	D5 00000000r	   mov ebx,[mcu+edx*8+0]
+1  1931	00000959  8B 34	D5 00000004r	   mov esi,[mcu+edx*8+4]
+1  1932	00000960  81 C3	02000000	   add ebx,c128	; 128*2E18
+1  1933	00000966  81 C6	02000000	   add esi,c128	; 128*2E18
+1  1934	0000096C  C1 FB	12		   sar ebx,18 ;	Y0*2E0
+1  1935	0000096F  C1 FE	12		   sar esi,18 ;	Y1*2E0
+1  1936					 ; ycb2b conversion
+1  1937	00000972  8B 14	BD 00000200r	   mov edx,[mcu+512+edi*4]
+1  1938	00000979  B8 716872B0		   mov eax,mcb ; mfb*2E30
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 35
+webview.asm
+
+
+
+1  1939	0000097E  F7 EA			   imul	edx ; mfb*Cb*2E16
+1  1940	00000980  C1 FA	10		   sar edx,16 ;	mfb*Cb
+1  1941					 ; calculate 1st B value
+1  1942	00000983  8D 04	13		   lea eax,[ebx+edx] ; B0
+1  1943	00000986  84 E4			   test	ah,ah ;	validate
+1  1944	00000988  74 06			   jz StoreThisB0 ; correct
+1  1945	0000098A  B0 00			   mov al,000h ; minimum
+1  1946	0000098C  78 02			   js StoreThisB0 ; correct
+1  1947	0000098E  B0 FF			   mov al,0FFh ; maximum
+1  1948	00000990			 label StoreThisB0 near
+1  1949	00000990  88 45	00		   mov [ebp+0],al ; B0
+1  1950					 ; calculate 2nd B value
+1  1951	00000993  8D 04	16		   lea eax,[esi+edx] ; B1
+1  1952	00000996  84 E4			   test	ah,ah ;	validate
+1  1953	00000998  74 06			   jz StoreThisB1 ; correct
+1  1954	0000099A  B0 00			   mov al,000h ; minimum
+1  1955	0000099C  78 02			   js StoreThisB1 ; correct
+1  1956	0000099E  B0 FF			   mov al,0FFh ; maximum
+1  1957	000009A0			 label StoreThisB1 near
+1  1958	000009A0  88 45	03		   mov [ebp+3],al ; B1
+1  1959					 ; ycr2r conversion
+1  1960	000009A3  8B 14	BD 00000300r	   mov edx,[mcu+768+edi*4]
+1  1961	000009AA  B8 59BA5E35		   mov eax,mcr ; mfr*2E30
+1  1962	000009AF  F7 EA			   imul	edx ; mfr*Cr*2E16
+1  1963	000009B1  C1 FA	10		   sar edx,16 ;	mfr*Cr
+1  1964					 ; calculate 1st R value
+1  1965	000009B4  8D 04	13		   lea eax,[ebx+edx] ; R0
+1  1966	000009B7  84 E4			   test	ah,ah ;	validate
+1  1967	000009B9  74 06			   jz StoreThisR0 ; correct
+1  1968	000009BB  B0 00			   mov al,000h ; minimum
+1  1969	000009BD  78 02			   js StoreThisR0 ; correct
+1  1970	000009BF  B0 FF			   mov al,0FFh ; maximum
+1  1971	000009C1			 label StoreThisR0 near
+1  1972	000009C1  88 45	02		   mov [ebp+2],al ; R0
+1  1973					 ; calculate 2nd R value
+1  1974	000009C4  8D 04	16		   lea eax,[esi+edx] ; R1
+1  1975	000009C7  84 E4			   test	ah,ah ;	validate
+1  1976	000009C9  74 06			   jz StoreThisR1 ; correct
+1  1977	000009CB  B0 00			   mov al,000h ; minimum
+1  1978	000009CD  78 02			   js StoreThisR1 ; correct
+1  1979	000009CF  B0 FF			   mov al,0FFh ; maximum
+1  1980	000009D1			 label StoreThisR1 near
+1  1981	000009D1  88 45	05		   mov [ebp+5],al ; R1
+1  1982					 ; ycbcr2g conversion
+1  1983	000009D4  8B 14	BD 00000200r	   mov edx,[mcu+512+edi*4]
+1  1984	000009DB  B8 160663C7		   mov eax,gcb ; gfb*2E30
+1  1985	000009E0  F7 EA			   imul	edx ; gfb*Cb*2E16
+1  1986	000009E2  C1 FA	10		   sar edx,16 ;	gfb*Cb
+1  1987	000009E5  2B DA			   sub ebx,edx ; Y0-gfb*Cb
+1  1988	000009E7  2B F2			   sub esi,edx ; Y1-gfb*Cb
+1  1989	000009E9  8B 14	BD 00000300r	   mov edx,[mcu+768+edi*4]
+1  1990	000009F0  B8 2DB47842		   mov eax,gcr ; gfr*2E30
+1  1991	000009F5  F7 EA			   imul	edx ; gfr*Cr*2E16
+1  1992	000009F7  C1 FA	10		   sar edx,16 ;	gfr*Cr
+1  1993	000009FA  2B F2			   sub esi,edx ; G1
+1  1994	000009FC  2B DA			   sub ebx,edx ; G0
+1  1995	000009FE  8B D6			   mov edx,esi ; G1
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 36
+webview.asm
+
+
+
+1  1996					 ; validate 1st	G value
+1  1997	00000A00  84 FF			   test	bh,bh ;	validate
+1  1998	00000A02  74 06			   jz StoreThisG0 ; correct
+1  1999	00000A04  B3 00			   mov bl,000h ; minimum
+1  2000	00000A06  78 02			   js StoreThisG0 ; correct
+1  2001	00000A08  B3 FF			   mov bl,0FFh ; maximum
+1  2002	00000A0A			 label StoreThisG0 near
+1  2003	00000A0A  88 5D	01		   mov [ebp+1],bl ; G0
+1  2004					 ; validate 2nd	G value
+1  2005	00000A0D  84 F6			   test	dh,dh ;	validate
+1  2006	00000A0F  74 06			   jz StoreThisG1 ; correct
+1  2007	00000A11  B2 00			   mov dl,000h ; minimum
+1  2008	00000A13  78 02			   js StoreThisG1 ; correct
+1  2009	00000A15  B2 FF			   mov dl,0FFh ; maximum
+1  2010	00000A17			 label StoreThisG1 near
+1  2011	00000A17  88 55	04		   mov [ebp+4],dl ; G1
+1  2012					 ; bump	to next	column
+1  2013	00000A1A  8D 6D	06		   lea ebp,[ebp+6]
+1  2014	00000A1D  8D 7F	01		   lea edi,[edi+1]
+1  2015	00000A20  FE CD			   dec ch ; columns
+1  2016	00000A22  0F 85	FFFFFF23	   jnz ycc2rgb ; more
+1  2017					 ; bump	to next	row
+1  2018	00000A28  8D AD	FFFFF850	   lea ebp,[ebp-16*3-1*3*Ix]
+1  2019	00000A2E  83 FF	40		   cmp edi,64 ;	complete
+1  2020	00000A31  0F 82	FFFFFF12	   jb UnitRowNext ; more
+1  2021					 ; bump	pointer	horizontally
+1  2022	00000A37  8D AD	00003C30	   lea ebp,[ebp+16*3+8*3*Ix]
+1  2023	00000A3D  FE C9			   dec cl ; horizontal units
+1  2024	00000A3F  0F 85	FFFFFEF4	   jnz ReadNextUnit ; more
+1  2025					 ; bump	pointer	vertically
+1  2026	00000A45  8D AD	FFFFBC80	   lea ebp,[ebp-(8+1)*3*Ix]
+1  2027					 ; verify image	complete
+1  2028	00000A4B  81 FD	00096672r	   cmp ebp,offset(rgbBuffer)
+1  2029	00000A51  0F 87	FFFFFEE0	   ja ReadImage	; more
+1  2030	00000A57  5E			   pop esi ; restore
+1  2031	00000A58  C3			   ret ; return
+1  2032	00000A59			 endp jpg2rgb
+1  2033
+1  2034	00000A59			 dataseg
+1  2035					 ; aanidct - dequantization table
+1  2036	00000AAD  00400000 0058C543   +	 iqt dd	d00,d01,d02,d03,d04,d05,d06,d07
+   2037		  00539EBA 004B418C   +
+   2038		  00400000 003248D4   +
+   2039		  0022A2F5 0011A856
+1  2040	00000ACD  0058C543 007B20D8   +	     dd	d10,d11,d12,d13,d14,d15,d16,d17
+   2041		  0073FBFC 00686214   +
+   2042		  0058C543 0045BF1F   +
+   2043		  00300AD3 00187DE3
+1  2044	00000AED  00539EBA 0073FBFC   +	     dd	d20,d21,d22,d23,d24,d25,d26,d27
+   2045		  006D413D 006253A6   +
+   2046		  00539EBA 0041B328   +
+   2047		  002D413D 0017121A
+1  2048	00000B0D  004B418C 00686214   +	     dd	d30,d31,d32,d33,d34,d35,d36,d37
+   2049		  006253A6 00587DE3   +
+   2050		  004B418C 003B20D8   +
+   2051		  0028BA70 0014C35A
+1  2052	00000B2D  00400000 0058C543   +	     dd	d40,d41,d42,d43,d44,d45,d46,d47
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 37
+webview.asm
+
+
+
+   2053		  00539EBA 004B418C   +
+   2054		  00400000 003248D4   +
+   2055		  0022A2F5 0011A856
+1  2056	00000B4D  003248D4 0045BF1F   +	     dd	d50,d51,d52,d53,d54,d55,d56,d57
+   2057		  0041B328 003B20D8   +
+   2058		  003248D4 0027821D   +
+   2059		  001B36B9 000DDF9B
+1  2060	00000B6D  0022A2F5 00300AD3   +	     dd	d60,d61,d62,d63,d64,d65,d66,d67
+   2061		  002D413D 0028BA70   +
+   2062		  0022A2F5 001B36B9   +
+   2063		  0012BEC3 00098E63
+1  2064	00000B8D  0011A856 00187DE3   +	     dd	d70,d71,d72,d73,d74,d75,d76,d77
+   2065		  0017121A 0014C35A   +
+   2066		  0011A856 000DDF9B   +
+   2067		  00098E63 0004DF28
+1  2068
+1  2069	00000BAD			 codeseg
+1  2070	00000A59			 proc reader near
+1  2071					 ; process SOI marker
+1  2072	00000A59  2B C9			   sub ecx,ecx ; zero
+1  2073	00000A5B  89 0D	00000A69r	   mov [UseRestart],ecx
+1  2074	00000A61  8D 76	02		   lea esi,[esi+2]
+1  2075	00000A64			 label NextMarker near
+1  2076					 ; address next	marker
+1  2077	00000A64  8A 6E	02		   mov ch,[esi+2] ; >length
+1  2078	00000A67  8A 4E	03		   mov cl,[esi+3] ; <length
+1  2079	00000A6A  8D 74	0E 02		   lea esi,[esi+ecx+2]
+1  2080					 ; avoid buffer	overflow
+1  2081	00000A6E  3B F7			   cmp esi,edi ; boundary
+1  2082	00000A70  72 08			   jb UseMarker	; accept
+1  2083	00000A72  C6 05	00000A64r 00	   mov [GoodImage],0
+1  2084	00000A79  C3			   ret ; return
+1  2085	00000A7A			 label UseMarker near
+1  2086					 ; process markers
+1  2087	00000A7A  8B 06			   mov eax,[esi]
+1  2088					 ; process DRI marker
+1  2089	00000A7C  3D 0400DDFF		   cmp eax,0400DDFFh
+1  2090	00000A81  74 10			   je Restart
+1  2091					 ; process DQT marker
+1  2092	00000A83  3D 4300DBFF		   cmp eax,4300DBFFh
+1  2093	00000A88  74 1D			   je Factors
+1  2094					 ; process SOS marker
+1  2095	00000A8A  3D 0C00DAFF		   cmp eax,0C00DAFFh
+1  2096	00000A8F  74 51			   je Huffman
+1  2097					 ; skip	other markers
+1  2098	00000A91  EB D1			   jmp NextMarker
+1  2099	00000A93			 label Restart near
+1  2100					 ; set interval	value
+1  2101	00000A93  8A 6E	04		   mov ch,[esi+4] ; >value
+1  2102	00000A96  8A 4E	05		   mov cl,[esi+5] ; <value
+1  2103	00000A99  89 0D	00000A65r	   mov [CntRestart],ecx
+1  2104	00000A9F  89 0D	00000A69r	   mov [UseRestart],ecx
+1  2105	00000AA5  EB BD			   jmp NextMarker
+1  2106	00000AA7			 label Factors near
+1  2107					 ; update dequantization
+1  2108	00000AA7  2B DB			   sub ebx,ebx ; zero
+1  2109	00000AA9  2B C9			   sub ecx,ecx ; zero
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 38
+webview.asm
+
+
+
+1  2110	00000AAB  2B D2			   sub edx,edx ; zero
+1  2111	00000AAD  B1 40			   mov cl,64 ; factors
+1  2112					 ; update luminance
+1  2113	00000AAF  BD 00000334r		   mov ebp,offset(yqi)
+1  2114	00000AB4  80 7E	04 00		   cmp [byte(esi+4)],0
+1  2115	00000AB8  74 0D			   je SetTable ; ok
+1  2116					 ; update chrominance
+1  2117	00000ABA  BD 00000846r		   mov ebp,offset(cqi)
+1  2118	00000ABF  80 7E	04 01		   cmp [byte(esi+4)],1
+1  2119	00000AC3  74 02			   je SetTable ; ok
+1  2120	00000AC5  EB 9D			   jmp NextMarker
+1  2121	00000AC7			 label SetTable	near
+1  2122	00000AC7  8A 99	00000A23r	   mov bl,[zzo+ecx-1]
+1  2123	00000ACD  8A 54	0E 04		   mov dl,[esi+ecx+4]
+1  2124					 ; obtain scaling factor
+1  2125	00000AD1  8B 04	9D 00000AADr	   mov eax,[iqt+ebx*4]
+1  2126	00000AD8  F7 E2			   mul edx ; compression
+1  2127					 ; set dequantize factor
+1  2128	00000ADA  89 44	9D 00		   mov [ebp+ebx*4],eax
+1  2129	00000ADE  E2 E7			   loop	SetTable
+1  2130	00000AE0  EB 82			   jmp NextMarker
+1  2131	00000AE2			 label Huffman near
+1  2132					 ; copy	huffman	codes
+1  2133	00000AE2  8D 76	0E		   lea esi,[esi+14]
+1  2134	00000AE5  8B CF			   mov ecx,edi ; end
+1  2135	00000AE7  2B CE			   sub ecx,esi ; size
+1  2136	00000AE9  BF 0004B672r		   mov edi,offset(outBuffer)
+1  2137	00000AEE  F3> A4		   rep movsb ; copy
+1  2138	00000AF0  C3			   ret ; return
+1  2139	00000AF1			 endp reader
+1  2140
+1  2141					 ; precalculated rgb2ycc coefficients
+1  2142		  =48461F81		 cbm = 1212555137 ; 0.564639986*2E31
+1  2143		  =5B49532E		 crm = 1531532078 ; 0.713175199*2E31
+1  2144		  =0EA747D8		 ybc = 0245843928 ; 0.11448*2E31
+1  2145		  =4B160957		 ygc = 1259735383 ; 0.58661*2E31
+1  2146		  =2642AED1		 yrc = 0641904337 ; 0.29891*2E31
+1  2147
+1  2148	00000AF1			 codeseg
+1  2149	00000AF1			 proc rgb2jpg near
+1  2150					 ; clear old dc	values
+1  2151	00000AF1  2B C0			   sub eax,eax ; zero
+1  2152	00000AF3  A3 0000040Cr		   mov [dcValue+0],eax
+1  2153	00000AF8  A3 00000410r		   mov [dcValue+4],eax
+1  2154	00000AFD  A3 00000414r		   mov [dcValue+8],eax
+1  2155					 ; clear huffman state
+1  2156	00000B02  A3 00000404r		   mov [hcOffset],eax
+1  2157	00000B07  A3 00000408r		   mov [hcStatus],eax
+1  2158					 ; scan	image to build minimum coded units
+1  2159	00000B0C  BD 00176EF2r		   mov ebp,offset(rgbBuffer)+3*Ix*(Iy-1)
+1  2160	00000B11  56			   push	esi ; save
+1  2161	00000B12			 label ScanImage near
+1  2162					 ; set horizontal units
+1  2163	00000B12  B1 28			   mov cl,Ix/16	; 4:2:2
+1  2164	00000B14			 label BuildNextUnit near
+1  2165					 ; build minimum coded unit
+1  2166	00000B14  2B FF			   sub edi,edi ; mcu index
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 39
+webview.asm
+
+
+
+1  2167	00000B16			 label NextUnitRow near
+1  2168	00000B16  B5 08			   mov ch,8 ; columns
+1  2169	00000B18			 label rgb2ycc near
+1  2170					 ; rgb2y0 conversion
+1  2171	00000B18  2B D2			   sub edx,edx ; clear
+1  2172	00000B1A  8A 55	00		   mov dl,[ebp+0] ; B0
+1  2173	00000B1D  B8 0EA747D8		   mov eax,ybc ; ybf*2E31
+1  2174	00000B22  C1 E2	12		   shl edx,18 ;	B0*2E18
+1  2175	00000B25  F7 E2			   mul edx ; ybf*B0*2E18
+1  2176	00000B27  8B DA			   mov ebx,edx ; apply
+1  2177	00000B29  2B D2			   sub edx,edx ; clear
+1  2178	00000B2B  8A 55	01		   mov dl,[ebp+1] ; G0
+1  2179	00000B2E  B8 4B160957		   mov eax,ygc ; ygf*2E31
+1  2180	00000B33  C1 E2	12		   shl edx,18 ;	G0*2E18
+1  2181	00000B36  F7 E2			   mul edx ; ygf*G0*2E18
+1  2182	00000B38  03 DA			   add ebx,edx ; apply
+1  2183	00000B3A  2B D2			   sub edx,edx ; clear
+1  2184	00000B3C  8A 55	02		   mov dl,[ebp+2] ; R0
+1  2185	00000B3F  B8 2642AED1		   mov eax,yrc ; yrf*2E31
+1  2186	00000B44  C1 E2	12		   shl edx,18 ;	R0*2E18
+1  2187	00000B47  F7 E2			   mul edx ; yrf*R0*2E18
+1  2188	00000B49  03 DA			   add ebx,edx ; apply
+1  2189					 ; rgb2y0 midpoint shift
+1  2190	00000B4B  8D 83	FF000000	   lea eax,[ebx-c128/2]
+1  2191	00000B51  0F B6	97 00000A6Dr	   movzx edx,[yyo+edi]
+1  2192	00000B58  89 04	D5 00000000r	   mov [mcu+edx*8+0],eax
+1  2193					 ; rgb2y1 conversion
+1  2194	00000B5F  2B D2			   sub edx,edx ; clear
+1  2195	00000B61  8A 55	03		   mov dl,[ebp+3] ; B1
+1  2196	00000B64  B8 0EA747D8		   mov eax,ybc ; ybf*2E31
+1  2197	00000B69  C1 E2	12		   shl edx,18 ;	B1*2E18
+1  2198	00000B6C  F7 E2			   mul edx ; ybf*B1*2E18
+1  2199	00000B6E  8B F2			   mov esi,edx ; apply
+1  2200	00000B70  2B D2			   sub edx,edx ; clear
+1  2201	00000B72  8A 55	04		   mov dl,[ebp+4] ; G1
+1  2202	00000B75  B8 4B160957		   mov eax,ygc ; ygf*2E31
+1  2203	00000B7A  C1 E2	12		   shl edx,18 ;	G1*2E18
+1  2204	00000B7D  F7 E2			   mul edx ; ygf*G1*2E18
+1  2205	00000B7F  03 F2			   add esi,edx ; apply
+1  2206	00000B81  2B D2			   sub edx,edx ; clear
+1  2207	00000B83  8A 55	05		   mov dl,[ebp+5] ; R1
+1  2208	00000B86  B8 2642AED1		   mov eax,yrc ; yrf*2E31
+1  2209	00000B8B  C1 E2	12		   shl edx,18 ;	R1*2E18
+1  2210	00000B8E  F7 E2			   mul edx ; yrf*R1*2E18
+1  2211	00000B90  03 F2			   add esi,edx ; apply
+1  2212					 ; rgb2y1 midpoint shift
+1  2213	00000B92  8D 86	FF000000	   lea eax,[esi-c128/2]
+1  2214	00000B98  0F B6	97 00000A6Dr	   movzx edx,[yyo+edi]
+1  2215	00000B9F  89 04	D5 00000004r	   mov [mcu+edx*8+4],eax
+1  2216					 ; total Y0+Y1 values
+1  2217	00000BA6  03 DE			   add ebx,esi ; Y*2E19
+1  2218					 ; total B0+B1 values
+1  2219	00000BA8  2B C0			   sub eax,eax ; clear
+1  2220	00000BAA  2B D2			   sub edx,edx ; clear
+1  2221	00000BAC  8A 45	00		   mov al,[ebp+0] ; B0
+1  2222	00000BAF  8A 55	03		   mov dl,[ebp+3] ; B1
+1  2223	00000BB2  03 D0			   add edx,eax ; B*2E1
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 40
+webview.asm
+
+
+
+1  2224	00000BB4  C1 E2	11		   shl edx,17 ;	B*2E18
+1  2225					 ; yr2cb conversion
+1  2226	00000BB7  B8 48461F81		   mov eax,cbm ; cbf*2E31
+1  2227	00000BBC  2B D3			   sub edx,ebx ; (B-Y)*2E19
+1  2228	00000BBE  F7 EA			   imul	edx ; cbf*(B-Y)*2E18
+1  2229	00000BC0  89 14	BD 00000200r	   mov [mcu+512+edi*4],edx
+1  2230					 ; total R0+R1 values
+1  2231	00000BC7  2B C0			   sub eax,eax ; clear
+1  2232	00000BC9  2B D2			   sub edx,edx ; clear
+1  2233	00000BCB  8A 45	02		   mov al,[ebp+2] ; R0
+1  2234	00000BCE  8A 55	05		   mov dl,[ebp+5] ; R1
+1  2235	00000BD1  03 D0			   add edx,eax ; R*2E1
+1  2236	00000BD3  C1 E2	11		   shl edx,17 ;	R*2E18
+1  2237					 ; yb2cr conversion
+1  2238	00000BD6  B8 5B49532E		   mov eax,crm ; crf*2E31
+1  2239	00000BDB  2B D3			   sub edx,ebx ; (R-Y)*2E19
+1  2240	00000BDD  F7 EA			   imul	edx ; crf*(R-Y)*2E18
+1  2241	00000BDF  89 14	BD 00000300r	   mov [mcu+768+edi*4],edx
+1  2242					 ; bump	to next	column
+1  2243	00000BE6  8D 6D	06		   lea ebp,[ebp+6]
+1  2244	00000BE9  8D 7F	01		   lea edi,[edi+1]
+1  2245	00000BEC  FE CD			   dec ch ; columns
+1  2246	00000BEE  0F 85	FFFFFF24	   jnz rgb2ycc ; more
+1  2247					 ; bump	to next	row
+1  2248	00000BF4  8D AD	FFFFF850	   lea ebp,[ebp-16*3-1*3*Ix]
+1  2249	00000BFA  83 FF	40		   cmp edi,64 ;	complete
+1  2250	00000BFD  0F 82	FFFFFF13	   jb NextUnitRow ; more
+1  2251					 ; put minimum coded unit
+1  2252	00000C03  55 51			   push	ebp ecx	; save
+1  2253	00000C05  E8 FFFFF3F6		   call	aanfdct	; forward
+1  2254	00000C0A  E8 FFFFFAB0		   call	encoder	; huffman
+1  2255	00000C0F  59 5D			   pop ecx ebp ; restore
+1  2256					 ; bump	pointer	horizontally
+1  2257	00000C11  8D AD	00003C30	   lea ebp,[ebp+16*3+8*3*Ix]
+1  2258	00000C17  FE C9			   dec cl ; horizontal units
+1  2259	00000C19  0F 85	FFFFFEF5	   jnz BuildNextUnit ; more
+1  2260					 ; bump	pointer	vertically
+1  2261	00000C1F  8D AD	FFFFBC80	   lea ebp,[ebp-(8+1)*3*Ix]
+1  2262					 ; verify image	complete
+1  2263	00000C25  81 FD	00096672r	   cmp ebp,offset(rgbBuffer)
+1  2264	00000C2B  0F 87	FFFFFEE1	   ja ScanImage	; more
+1  2265	00000C31  5E			   pop esi ; restore
+1  2266	00000C32  E8 00000001		   call	writer
+1  2267	00000C37  C3			   ret ; return
+1  2268	00000C38			 endp rgb2jpg
+1  2269
+1  2270	00000C38			 dataseg
+1  2271					 ; start of image
+1  2272	00000BAD  FF D8			 HdrSOI	db 0FFh,0D8h
+1  2273					 ; application segment
+1  2274	00000BAF  FF E0	00 10 4A 46 49+	 HdrAPP	db 0FFh,0E0h,0,16,'J','F','I','F',0,1,1,0,0,1,0,1,0,0
+   2275		  46 00	01 01 00 00 01+
+   2276		  00 01	00 00
+1  2277					 ; comment
+1  2278	00000BC1  FF FE	00 0F 57 69 6D+	 HdrCOM	db 0FFh,0FEh,0,15,"Wim's WebView"
+   2279		  27 73	20 57 65 62 56+
+   2280		  69 65	77
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 41
+webview.asm
+
+
+
+1  2281					 ; define quantization tables -	zigzag order
+1  2282	00000BD2  FF DB	00 43 00	 HdrDQTy db 0FFh,0DBh,0,67,00h ; luminance
+1  2283	00000BD7  08 0A	0A 0A 0E 0A 0A+		 db y00,y01,y10,y20,y11,y02,y03,y12
+   2284		  0E
+1  2285	00000BDF  0E 0A	0B 0E 0E 0E 0B+		 db y21,y30,y40,y31,y22,y13,y04,y05
+   2286		  0D
+1  2287	00000BE7  0E 0F	0F 0E 0D 0F 0E+		 db y14,y23,y32,y41,y50,y60,y51,y42
+   2288		  11
+1  2289	00000BEF  10 11	0E 0F 12 0E 13+		 db y33,y24,y15,y06,y07,y16,y25,y34
+   2290		  12
+1  2291	00000BF7  12 13	0E 12 0F 16 15+		 db y43,y52,y61,y70,y71,y62,y53,y44
+   2292		  14
+1  2293	00000BFF  15 16	0F 1A 18 16 16+		 db y35,y26,y17,y27,y36,y45,y54,y63
+   2294		  18
+1  2295	00000C07  1A 1C	1A 1A 1A 1C 1E+		 db y72,y73,y64,y55,y46,y37,y47,y56
+   2296		  1D
+1  2297	00000C0F  1D 1E	22 21 22 26 26+		 db y65,y74,y75,y66,y57,y67,y76,y77
+   2298		  2A
+1  2299	00000C17  FF DB	00 43 01	 HdrDQTc db 0FFh,0DBh,0,67,01h ; chrominance
+1  2300	00000C1C  0C 14	14 1E 20 1E 28+		 db c00,c01,c10,c20,c11,c02,c03,c12
+   2301		  2A
+1  2302	00000C24  2A 28	54 36 38 36 54+		 db c21,c30,c40,c31,c22,c13,c04,c05
+   2303		  54
+1  2304	00000C2C  54 42	42 54 54 54 54+		 db c14,c23,c32,c41,c50,c60,c51,c42
+   2305		  54
+1  2306	00000C34  54 54	54 54 54 54 54+		 db c33,c24,c15,c06,c07,c16,c25,c34
+   2307		  54
+1  2308	00000C3C  54 54	54 54 54 54 54+		 db c43,c52,c61,c70,c71,c62,c53,c44
+   2309		  54
+1  2310	00000C44  54 54	54 54 54 54 54+		 db c35,c26,c17,c27,c36,c45,c54,c63
+   2311		  54
+1  2312	00000C4C  54 54	54 54 54 54 54+		 db c72,c73,c64,c55,c46,c37,c47,c56
+   2313		  54
+1  2314	00000C54  54 54	54 54 54 54 54+		 db c65,c74,c75,c66,c57,c67,c76,c77
+   2315		  54
+1  2316					 ; start of frame - baseline dct - 3 components	- 4:2:2	chroma subsampling
+1  2317	00000C5C  FF C0	00 11 08 01 E0+	 HdrSOF	db 0FFh,0C0h,0,17,8,high(Iy),low(Iy),high(Ix),low(Ix),3,1,21h,0,2,11h,1,3,11h,1
+   2318		  02 80	03 01 21 00 02+
+   2319		  11 01	03 11 01
+1  2320					 ; define huffman tables
+1  2321	00000C6F  FF C4	00 1F 00	 HdrDHTyd db 0FFh,0C4h,0,031,00h ; luminance dc	table
+1  2322	00000C74  00 01	05 01 01 01 01+		db 00h,01h,05h,01h,01h,01h,01h,01h,01h,00h,00h,00h,00h,00h,00h,00h
+   2323		  01 01	00 00 00 00 00+
+   2324		  00 00
+1  2325	00000C84  00 01	02 03 04 05 06+		db 00h,01h,02h,03h,04h,05h,06h,07h,08h,09h,0Ah,0Bh
+   2326		  07 08	09 0A 0B
+1  2327	00000C90  FF C4	00 B5 10	 HdrDHTya db 0FFh,0C4h,0,181,10h ; luminance ac	table
+1  2328	00000C95  00 02	01 03 03 02 04+		db 00h,02h,01h,03h,03h,02h,04h,03h,05h,05h,04h,04h,00h,00h,01h,7Dh
+   2329		  03 05	05 04 04 00 00+
+   2330		  01 7D
+1  2331	00000CA5  01 02	03 00 04 11 05+		db 001h,002h,003h,000h,004h,011h,005h,012h,021h,031h,041h,006h,013h,051h,061h,007h
+   2332		  12 21	31 41 06 13 51+
+   2333		  61 07
+1  2334	00000CB5  22 71	14 32 81 91 A1+		db 022h,071h,014h,032h,081h,091h,0A1h,008h,023h,042h,0B1h,0C1h,015h,052h,0D1h,0F0h
+   2335		  08 23	42 B1 C1 15 52+
+   2336		  D1 F0
+1  2337	00000CC5  24 33	62 72 82 09 0A+		db 024h,033h,062h,072h,082h,009h,00Ah,016h,017h,018h,019h,01Ah,025h,026h,027h,028h
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 42
+webview.asm
+
+
+
+   2338		  16 17	18 19 1A 25 26+
+   2339		  27 28
+1  2340	00000CD5  29 2A	34 35 36 37 38+		db 029h,02Ah,034h,035h,036h,037h,038h,039h,03Ah,043h,044h,045h,046h,047h,048h,049h
+   2341		  39 3A	43 44 45 46 47+
+   2342		  48 49
+1  2343	00000CE5  4A 53	54 55 56 57 58+		db 04Ah,053h,054h,055h,056h,057h,058h,059h,05Ah,063h,064h,065h,066h,067h,068h,069h
+   2344		  59 5A	63 64 65 66 67+
+   2345		  68 69
+1  2346	00000CF5  6A 73	74 75 76 77 78+		db 06Ah,073h,074h,075h,076h,077h,078h,079h,07Ah,083h,084h,085h,086h,087h,088h,089h
+   2347		  79 7A	83 84 85 86 87+
+   2348		  88 89
+1  2349	00000D05  8A 92	93 94 95 96 97+		db 08Ah,092h,093h,094h,095h,096h,097h,098h,099h,09Ah,0A2h,0A3h,0A4h,0A5h,0A6h,0A7h
+   2350		  98 99	9A A2 A3 A4 A5+
+   2351		  A6 A7
+1  2352	00000D15  A8 A9	AA B2 B3 B4 B5+		db 0A8h,0A9h,0AAh,0B2h,0B3h,0B4h,0B5h,0B6h,0B7h,0B8h,0B9h,0BAh,0C2h,0C3h,0C4h,0C5h
+   2353		  B6 B7	B8 B9 BA C2 C3+
+   2354		  C4 C5
+1  2355	00000D25  C6 C7	C8 C9 CA D2 D3+		db 0C6h,0C7h,0C8h,0C9h,0CAh,0D2h,0D3h,0D4h,0D5h,0D6h,0D7h,0D8h,0D9h,0DAh,0E1h,0E2h
+   2356		  D4 D5	D6 D7 D8 D9 DA+
+   2357		  E1 E2
+1  2358	00000D35  E3 E4	E5 E6 E7 E8 E9+		db 0E3h,0E4h,0E5h,0E6h,0E7h,0E8h,0E9h,0EAh,0F1h,0F2h,0F3h,0F4h,0F5h,0F6h,0F7h,0F8h
+   2359		  EA F1	F2 F3 F4 F5 F6+
+   2360		  F7 F8
+1  2361	00000D45  F9 FA				db 0F9h,0FAh
+1  2362	00000D47  FF C4	00 1F 01	 HdrDHTcd db 0FFh,0C4h,0,031,01h ; chrominance dc table
+1  2363	00000D4C  00 03	01 01 01 01 01+		db 00h,03h,01h,01h,01h,01h,01h,01h,01h,01h,01h,00h,00h,00h,00h,00h
+   2364		  01 01	01 01 00 00 00+
+   2365		  00 00
+1  2366	00000D5C  00 01	02 03 04 05 06+		db 00h,01h,02h,03h,04h,05h,06h,07h,08h,09h,0Ah,0Bh
+   2367		  07 08	09 0A 0B
+1  2368	00000D68  FF C4	00 B5 11	 HdrDHTca db 0FFh,0C4h,0,181,11h ; chrominance ac table
+1  2369	00000D6D  00 02	01 02 04 04 03+		db 00h,02h,01h,02h,04h,04h,03h,04h,07h,05h,04h,04h,00h,01h,02h,77h
+   2370		  04 07	05 04 04 00 01+
+   2371		  02 77
+1  2372	00000D7D  00 01	02 03 11 04 05+		db 000h,001h,002h,003h,011h,004h,005h,021h,031h,006h,012h,041h,051h,007h,061h,071h
+   2373		  21 31	06 12 41 51 07+
+   2374		  61 71
+1  2375	00000D8D  13 22	32 81 08 14 42+		db 013h,022h,032h,081h,008h,014h,042h,091h,0A1h,0B1h,0C1h,009h,023h,033h,052h,0F0h
+   2376		  91 A1	B1 C1 09 23 33+
+   2377		  52 F0
+1  2378	00000D9D  15 62	72 D1 0A 16 24+		db 015h,062h,072h,0D1h,00Ah,016h,024h,034h,0E1h,025h,0F1h,017h,018h,019h,01Ah,026h
+   2379		  34 E1	25 F1 17 18 19+
+   2380		  1A 26
+1  2381	00000DAD  27 28	29 2A 35 36 37+		db 027h,028h,029h,02Ah,035h,036h,037h,038h,039h,03Ah,043h,044h,045h,046h,047h,048h
+   2382		  38 39	3A 43 44 45 46+
+   2383		  47 48
+1  2384	00000DBD  49 4A	53 54 55 56 57+		db 049h,04Ah,053h,054h,055h,056h,057h,058h,059h,05Ah,063h,064h,065h,066h,067h,068h
+   2385		  58 59	5A 63 64 65 66+
+   2386		  67 68
+1  2387	00000DCD  69 6A	73 74 75 76 77+		db 069h,06Ah,073h,074h,075h,076h,077h,078h,079h,07Ah,082h,083h,084h,085h,086h,087h
+   2388		  78 79	7A 82 83 84 85+
+   2389		  86 87
+1  2390	00000DDD  88 89	8A 92 93 94 95+		db 088h,089h,08Ah,092h,093h,094h,095h,096h,097h,098h,099h,09Ah,0A2h,0A3h,0A4h,0A5h
+   2391		  96 97	98 99 9A A2 A3+
+   2392		  A4 A5
+1  2393	00000DED  A6 A7	A8 A9 AA B2 B3+		db 0A6h,0A7h,0A8h,0A9h,0AAh,0B2h,0B3h,0B4h,0B5h,0B6h,0B7h,0B8h,0B9h,0BAh,0C2h,0C3h
+   2394		  B4 B5	B6 B7 B8 B9 BA+
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 43
+webview.asm
+
+
+
+   2395		  C2 C3
+1  2396	00000DFD  C4 C5	C6 C7 C8 C9 CA+		db 0C4h,0C5h,0C6h,0C7h,0C8h,0C9h,0CAh,0D2h,0D3h,0D4h,0D5h,0D6h,0D7h,0D8h,0D9h,0DAh
+   2397		  D2 D3	D4 D5 D6 D7 D8+
+   2398		  D9 DA
+1  2399	00000E0D  E2 E3	E4 E5 E6 E7 E8+		db 0E2h,0E3h,0E4h,0E5h,0E6h,0E7h,0E8h,0E9h,0EAh,0F2h,0F3h,0F4h,0F5h,0F6h,0F7h,0F8h
+   2400		  E9 EA	F2 F3 F4 F5 F6+
+   2401		  F7 F8
+1  2402	00000E1D  F9 FA				db 0F9h,0FAh
+1  2403					 ; start of scan - 3 components
+1  2404	00000E1F  FF DA	00 0C 03 01 00+	 HdrSOS	db 0FFh,0DAh,0,12,3,1,00h,2,11h,3,11h,0,63,0
+   2405		  02 11	03 11 00 3F 00
+1  2406					 ; end of image
+1  2407	00000E2D  FF D9			 HdrEOI	db 0FFh,0D9h
+1  2408
+1  2409	00000E2F			 dataseg
+1  2410	00000E2F  77 65	62 76 69 65 77+	 ssOutput db 'webview.jpg',0
+   2411		  2E 6A	70 67 00
+1  2412
+1  2413	00000E3B			 codeseg
+1  2414	00000C38			 proc writer near
+1  2415					 ; open	jpg output file
+1  2416					   call	DosOpen	c,offset(ssOutput),offset(fhOutput),offset(ActionTaken),0,0,012h,0191h,0
+2  2417	00000C38  6A 00				 PUSH	 0
+2  2418	00000C3A  68 00000191			 PUSH	 0191H
+2  2419	00000C3F  6A 12				 PUSH	 012H
+2  2420	00000C41  6A 00				 PUSH	 0
+2  2421	00000C43  6A 00				 PUSH	 0
+2  2422	00000C45  68 0000064Er			 PUSH	 OFFSET(ACTIONTAKEN)
+2  2423	00000C4A  68 0017768Ar			 PUSH	 OFFSET(FHOUTPUT)
+2  2424	00000C4F  68 00000E2Fr			 PUSH	 OFFSET(SSOUTPUT)
+2  2425	00000C54  E8 00000000e			 CALL	 DOSOPEN
+2  2426	00000C59  83 C4	20			 ADD	 ESP,00020h
+1  2427	00000C5C  85 C0			   test	eax,eax	; check	for errors
+1  2428	00000C5E  0F 85	0000008B	   jnz NotWriter ; failure
+1  2429					 ; write headers to jpg	output file
+1  2430					   call	DosWrite c,[fhOutput],offset(HdrSOI),HdrEOI-HdrSOI,offset(BytesDone)
+2  2431	00000C64  68 00177686r			 PUSH	 OFFSET(BYTESDONE)
+2  2432	00000C69  68 00000280			 PUSH	 HDREOI-HDRSOI
+2  2433	00000C6E  68 00000BADr			 PUSH	 OFFSET(HDRSOI)
+2  2434	00000C73  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+2  2435	00000C79  E8 00000000e			 CALL	 DOSWRITE
+2  2436	00000C7E  83 C4	10			 ADD	 ESP,00010h
+1  2437	00000C81  85 C0			   test	eax,eax	; check	for errors
+1  2438	00000C83  75 5C			   jnz EndWriter ; failure
+1  2439					 ; obtain huffman state
+1  2440	00000C85  8B 0D	00000408r	   mov ecx,[hcStatus]
+1  2441	00000C8B  8B 3D	00000404r	   mov edi,[hcOffset]
+1  2442					 ; emit	remaining bits
+1  2443	00000C91  84 ED			   test	ch,ch ;	incomplete
+1  2444	00000C93  74 1A			   jz AppendTrailer ; no
+1  2445	00000C95  B0 FF			   mov al,0FFh ; filler
+1  2446	00000C97  8A E1			   mov ah,cl ; string
+1  2447	00000C99  8A CD			   mov cl,ch ; length
+1  2448	00000C9B  D3 E8			   shr eax,cl ;	alignment
+1  2449	00000C9D  88 87	0004B672r	   mov [outBuffer+edi],al
+1  2450	00000CA3  47			   inc edi ; next position
+1  2451					 ; cater for zero stuffing
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 44
+webview.asm
+
+
+
+1  2452	00000CA4  34 FF			   xor al,0FFh ; ones/zeros
+1  2453	00000CA6  75 07			   jnz AppendTrailer ; no
+1  2454	00000CA8  88 87	0004B672r	   mov [outBuffer+edi],al
+1  2455	00000CAE  47			   inc edi ; next position
+1  2456	00000CAF			 label AppendTrailer near
+1  2457					 ; append end of image header
+1  2458	00000CAF  66| A1 00000E2Dr	   mov ax,[word(HdrEOI)]
+1  2459	00000CB5  88 87	0004B672r	   mov [outBuffer+edi],al
+1  2460	00000CBB  47			   inc edi ; next position
+1  2461	00000CBC  88 A7	0004B672r	   mov [outBuffer+edi],ah
+1  2462	00000CC2  47			   inc edi ; next position
+1  2463					 ; address huffman buffer
+1  2464	00000CC3  BE 0004B672r		   mov esi,offset(outBuffer)
+1  2465					 ; write huffman to jpg	output file
+1  2466					   call	DosWrite c,[fhOutput],esi,edi,offset(BytesDone)
+2  2467	00000CC8  68 00177686r			 PUSH	 OFFSET(BYTESDONE)
+2  2468	00000CCD  57				 PUSH	 EDI
+2  2469	00000CCE  56				 PUSH	 ESI
+2  2470	00000CCF  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+2  2471	00000CD5  E8 00000000e			 CALL	 DOSWRITE
+2  2472	00000CDA  83 C4	10			 ADD	 ESP,00010h
+1  2473	00000CDD  85 C0			   test	eax,eax	; check	for errors
+1  2474	00000CDF  75 00			   jnz EndWriter ; failure
+1  2475	00000CE1			 label EndWriter near
+1  2476					 ; close jpg output file
+1  2477					   call	DosClose c,[fhOutput]
+2  2478	00000CE1  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+2  2479	00000CE7  E8 00000000e			 CALL	 DOSCLOSE
+2  2480	00000CEC  83 C4	04			 ADD	 ESP,00004h
+1  2481	00000CEF			 label NotWriter near
+1  2482	00000CEF  C3			   ret ; return
+1  2483	00000CF0			 endp writer
+1  2484
+   2485
+   2486	00000CF0			 dataseg
+   2487	00000E3B  00000D37		 flCreateFlags dd 00000D37h
+   2488	00000E3F  57 45	42 56 49 45 57+	 szClientClass db 'WEBVIEW - Client Window',0
+   2489		  20 2D	20 43 6C 69 65+
+   2490		  6E 74	20 57 69 6E 64+
+   2491		  6F 77	00
+   2492
+   2493	00000E57			 udataseg
+   2494	00000418  FF*(??)		 szMessageText db 255 dup(?)
+   2495	00000517  FF*(??)		 szWindowTitle db 255 dup(?)
+   2496
+   2497	00000616			 udataseg
+   2498	00000616  ????????		 hab dd	?
+   2499	0000061A  ????????		 hmq dd	?
+   2500	0000061E  ????????		 hwndClient dd ?
+   2501	00000622  ????????		 hwndFrame  dd ?
+   2502	00000626  08*(????????)		 qmsg dd 8 dup(?)
+   2503
+   2504	00000646			 udataseg
+   2505	00000646  ????????		 xWindowSize dd	?
+   2506	0000064A  ????????		 yWindowSize dd	?
+   2507
+   2508	0000064E			 udataseg
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 45
+webview.asm
+
+
+
+   2509	0000064E  ????????		 ActionTaken dd	?
+   2510
+   2511	00000652			 udataseg
+   2512	00000652  ????????		 tidObtain dd ?
+   2513
+   2514	00000656			 codeseg
+   2515	00000CF0			 proc MainRoutine c near
+   2516					 arg @@Mod,@@Nul,@@Env,@@Arg
+   2517					 ; determine begin of arguments
+1  2518	00000CF0  C8 0000 00			 ENTERD	 00000h,0
+1  2519	00000CF4  FC			   cld ; operate foreward scan
+   2520	00000CF5  B9 00000200		   mov ecx,512 ; max scan length
+   2521	00000CFA  8B 7D	14		   mov edi,[@@Arg] ; start address
+   2522	00000CFD  F2> AE		   repne scasb ; find terminator
+   2523					 ; process passed arguments
+   2524	00000CFF  E8 000007AD		   call	ProcessArguments
+   2525					 ; obtain anchor block handle
+   2526					   call	WinInitialize c,0
+1  2527	00000D04  6A 00				 PUSH	 0
+1  2528	00000D06  E8 00000000e			 CALL	 WININITIALIZE
+1  2529	00000D0B  83 C4	04			 ADD	 ESP,00004h
+   2530	00000D0E  85 C0			   test	eax,eax	; success
+   2531	00000D10  0F 84	000001BF	   jz EndProcess ; failure
+   2532	00000D16  A3 00000616r		   mov [hab],eax ; save
+   2533					 ; obtain program title
+   2534					   call	WinLoadString c,[hab],0,00h,255,offset(szWindowTitle)
+1  2535	00000D1B  68 00000517r			 PUSH	 OFFSET(SZWINDOWTITLE)
+1  2536	00000D20  68 000000FF			 PUSH	 255
+1  2537	00000D25  6A 00				 PUSH	 00H
+1  2538	00000D27  6A 00				 PUSH	 0
+1  2539	00000D29  FF 35	00000616r		 PUSH	 [HAB]
+1  2540	00000D2F  E8 00000000e			 CALL	 WINLOADSTRING
+1  2541	00000D34  83 C4	14			 ADD	 ESP,00014h
+   2542	00000D37  85 C0			   test	eax,eax	; success
+   2543	00000D39  0F 84	00000188	   jz EndMainMsgQueue ;	no
+   2544					 ; obtain message queue	handle
+   2545					   call	WinCreateMsgQueue c,[hab],0
+1  2546	00000D3F  6A 00				 PUSH	 0
+1  2547	00000D41  FF 35	00000616r		 PUSH	 [HAB]
+1  2548	00000D47  E8 00000000e			 CALL	 WINCREATEMSGQUEUE
+1  2549	00000D4C  83 C4	08			 ADD	 ESP,00008h
+   2550	00000D4F  85 C0			   test	eax,eax	; success
+   2551	00000D51  0F 84	00000170	   jz EndMainMsgQueue ;	no
+   2552	00000D57  A3 0000061Ar		   mov [hmq],eax ; save
+   2553					 ; start obtain	control	thread
+   2554					   call	DosCreateThread	c,offset(tidObtain),offset(ObtainThread),0,2,8192
+1  2555	00000D5C  68 00002000			 PUSH	 8192
+1  2556	00000D61  6A 02				 PUSH	 2
+1  2557	00000D63  6A 00				 PUSH	 0
+1  2558	00000D65  68 000010FCr			 PUSH	 OFFSET(OBTAINTHREAD)
+1  2559	00000D6A  68 00000652r			 PUSH	 OFFSET(TIDOBTAIN)
+1  2560	00000D6F  E8 00000000e			 CALL	 DOSCREATETHREAD
+1  2561	00000D74  83 C4	14			 ADD	 ESP,00014h
+   2562					 ; register client window class
+   2563					   call	WinRegisterClass c,[hab],offset(szClientClass),offset(ClientWinProc),0,0
+1  2564	00000D77  6A 00				 PUSH	 0
+1  2565	00000D79  6A 00				 PUSH	 0
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 46
+webview.asm
+
+
+
+1  2566	00000D7B  68 00000EE1r			 PUSH	 OFFSET(CLIENTWINPROC)
+1  2567	00000D80  68 00000E3Fr			 PUSH	 OFFSET(SZCLIENTCLASS)
+1  2568	00000D85  FF 35	00000616r		 PUSH	 [HAB]
+1  2569	00000D8B  E8 00000000e			 CALL	 WINREGISTERCLASS
+1  2570	00000D90  83 C4	14			 ADD	 ESP,00014h
+   2571	00000D93  85 C0			   test	eax,eax	; success
+   2572	00000D95  0F 84	00000110	   jz EndWindow	; failure
+   2573					 ; create frame	and client windows
+   2574					   call	WinCreateStdWindow c,1,0,offset(flCreateFlags),offset(szClientClass),offset	    +
+   2575					 (szWindowTitle),0,0,1,offset(hwndClient)
+1  2576	00000D9B  68 0000061Er			 PUSH	 OFFSET(HWNDCLIENT)
+1  2577	00000DA0  6A 01				 PUSH	 1
+1  2578	00000DA2  6A 00				 PUSH	 0
+1  2579	00000DA4  6A 00				 PUSH	 0
+1  2580	00000DA6  68 00000517r			 PUSH	 OFFSET(SZWINDOWTITLE)
+1  2581	00000DAB  68 00000E3Fr			 PUSH	 OFFSET(SZCLIENTCLASS)
+1  2582	00000DB0  68 00000E3Br			 PUSH	 OFFSET(FLCREATEFLAGS)
+1  2583	00000DB5  6A 00				 PUSH	 0
+1  2584	00000DB7  6A 01				 PUSH	 1
+1  2585	00000DB9  E8 00000000e			 CALL	 WINCREATESTDWINDOW
+1  2586	00000DBE  83 C4	24			 ADD	 ESP,00024h
+   2587	00000DC1  85 C0			   test	eax,eax	; success
+   2588	00000DC3  0F 84	000000E2	   jz EndWindow	; failure
+   2589	00000DC9  A3 00000622r		   mov [hwndFrame],eax ; save
+   2590					 ; replace frame window	procedure
+   2591					   call	WinSubclassWindow c,[hwndFrame],offset(FrameWinProc)
+1  2592	00000DCE  68 00001048r			 PUSH	 OFFSET(FRAMEWINPROC)
+1  2593	00000DD3  FF 35	00000622r		 PUSH	 [HWNDFRAME]
+1  2594	00000DD9  E8 00000000e			 CALL	 WINSUBCLASSWINDOW
+1  2595	00000DDE  83 C4	08			 ADD	 ESP,00008h
+   2596	00000DE1  85 C0			   test	eax,eax	; success
+   2597	00000DE3  0F 84	000000B4	   jz EndScreen	; failure
+   2598	00000DE9  A3 0000066Ar		   mov [WinOldWindowProc],eax
+   2599					 ; resize and show usb camera screen
+   2600					   call	WinQuerySysValue c,1,28	; SV_CXDLGFRAME
+1  2601	00000DEE  6A 1C				 PUSH	 28
+1  2602	00000DF0  6A 01				 PUSH	 1
+1  2603	00000DF2  E8 00000000e			 CALL	 WINQUERYSYSVALUE
+1  2604	00000DF7  83 C4	08			 ADD	 ESP,00008h
+   2605	00000DFA  8D 04	45 00000140	   lea eax,[eax*2+Ox+0]	; calculate width
+   2606	00000E01  A3 00000646r		   mov [xWindowSize],eax ; small width
+   2607					   call	WinQuerySysValue c,1,29	; SV_CYDLGFRAME
+1  2608	00000E06  6A 1D				 PUSH	 29
+1  2609	00000E08  6A 01				 PUSH	 1
+1  2610	00000E0A  E8 00000000e			 CALL	 WINQUERYSYSVALUE
+1  2611	00000E0F  83 C4	08			 ADD	 ESP,00008h
+   2612	00000E12  8D 04	45 000000EF	   lea eax,[eax*2+Oy-1]	; calculate height
+   2613	00000E19  A3 0000064Ar		   mov [yWindowSize],eax ; small height
+   2614					   call	WinQuerySysValue c,1,30	; SV_CYTITLEBAR
+1  2615	00000E1E  6A 1E				 PUSH	 30
+1  2616	00000E20  6A 01				 PUSH	 1
+1  2617	00000E22  E8 00000000e			 CALL	 WINQUERYSYSVALUE
+1  2618	00000E27  83 C4	08			 ADD	 ESP,00008h
+   2619	00000E2A  01 05	0000064Ar	   add [yWindowSize],eax ; small height
+   2620					   call	WinQuerySysValue c,1,35	; SV_CYMENU
+1  2621	00000E30  6A 23				 PUSH	 35
+1  2622	00000E32  6A 01				 PUSH	 1
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 47
+webview.asm
+
+
+
+1  2623	00000E34  E8 00000000e			 CALL	 WINQUERYSYSVALUE
+1  2624	00000E39  83 C4	08			 ADD	 ESP,00008h
+   2625	00000E3C  01 05	0000064Ar	   add [yWindowSize],eax ; small height
+   2626					   call	WinSetWindowPos	c,[hwndFrame],0,0,0,[xWindowSize],[yWindowSize],1089h
+1  2627	00000E42  68 00001089			 PUSH	 1089H
+1  2628	00000E47  FF 35	0000064Ar		 PUSH	 [YWINDOWSIZE]
+1  2629	00000E4D  FF 35	00000646r		 PUSH	 [XWINDOWSIZE]
+1  2630	00000E53  6A 00				 PUSH	 0
+1  2631	00000E55  6A 00				 PUSH	 0
+1  2632	00000E57  6A 00				 PUSH	 0
+1  2633	00000E59  FF 35	00000622r		 PUSH	 [HWNDFRAME]
+1  2634	00000E5F  E8 00000000e			 CALL	 WINSETWINDOWPOS
+1  2635	00000E64  83 C4	1C			 ADD	 ESP,0001Ch
+   2636	00000E67  85 C0			   test	eax,eax	; success
+   2637	00000E69  74 32			   jz EndScreen	; failure
+   2638	00000E6B			 label ProcessMessage near
+   2639					 ; obtain message from the message queue
+   2640					   call	WinGetMsg c,[hab],offset(qmsg),0,0,0
+1  2641	00000E6B  6A 00				 PUSH	 0
+1  2642	00000E6D  6A 00				 PUSH	 0
+1  2643	00000E6F  6A 00				 PUSH	 0
+1  2644	00000E71  68 00000626r			 PUSH	 OFFSET(QMSG)
+1  2645	00000E76  FF 35	00000616r		 PUSH	 [HAB]
+1  2646	00000E7C  E8 00000000e			 CALL	 WINGETMSG
+1  2647	00000E81  83 C4	14			 ADD	 ESP,00014h
+   2648	00000E84  85 C0			   test	eax,eax	; continue message
+   2649	00000E86  74 15			   jz EndProcessMessage	; quit message
+   2650					 ; dispatch message to client window procedure
+   2651					   call	WinDispatchMsg c,[hab],offset(qmsg)
+1  2652	00000E88  68 00000626r			 PUSH	 OFFSET(QMSG)
+1  2653	00000E8D  FF 35	00000616r		 PUSH	 [HAB]
+1  2654	00000E93  E8 00000000e			 CALL	 WINDISPATCHMSG
+1  2655	00000E98  83 C4	08			 ADD	 ESP,00008h
+   2656	00000E9B  EB CE			   jmp ProcessMessage
+   2657	00000E9D			 label EndProcessMessage near
+   2658	00000E9D			 label EndScreen near
+   2659					   call	WinDestroyWindow c,[hwndFrame]
+1  2660	00000E9D  FF 35	00000622r		 PUSH	 [HWNDFRAME]
+1  2661	00000EA3  E8 00000000e			 CALL	 WINDESTROYWINDOW
+1  2662	00000EA8  83 C4	04			 ADD	 ESP,00004h
+   2663	00000EAB			 label EndWindow near
+   2664					 ; suspend obtain control thread
+   2665					   call	DosSuspendThread c,[tidObtain]
+1  2666	00000EAB  FF 35	00000652r		 PUSH	 [TIDOBTAIN]
+1  2667	00000EB1  E8 00000000e			 CALL	 DOSSUSPENDTHREAD
+1  2668	00000EB6  83 C4	04			 ADD	 ESP,00004h
+   2669					 ; release message queue handle
+   2670					   call	WinDestroyMsgQueue c,[hmq]
+1  2671	00000EB9  FF 35	0000061Ar		 PUSH	 [HMQ]
+1  2672	00000EBF  E8 00000000e			 CALL	 WINDESTROYMSGQUEUE
+1  2673	00000EC4  83 C4	04			 ADD	 ESP,00004h
+   2674	00000EC7			 label EndMainMsgQueue near
+   2675					   call	WinTerminate c,[hab]
+1  2676	00000EC7  FF 35	00000616r		 PUSH	 [HAB]
+1  2677	00000ECD  E8 00000000e			 CALL	 WINTERMINATE
+1  2678	00000ED2  83 C4	04			 ADD	 ESP,00004h
+   2679	00000ED5			 label EndProcess near
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 48
+webview.asm
+
+
+
+   2680					 ; exit	the process
+   2681					   call	DosExit	c,1,0
+1  2682	00000ED5  6A 00				 PUSH	 0
+1  2683	00000ED7  6A 01				 PUSH	 1
+1  2684	00000ED9  E8 00000000e			 CALL	 DOSEXIT
+1  2685	00000EDE  83 C4	08			 ADD	 ESP,00008h
+   2686	00000EE1			 endp MainRoutine
+   2687
+   2688	00000EE1			 dataseg
+   2689	00000E57  000C 0000 0280 01E0 +	 bhMemory dw 12,0,Ix,Iy,1,24
+   2690		  0001 0018
+   2691	00000E63  00000000 00000000   +	 paMemory dd 0,0,Ox,Oy,0,0,Ix,Iy
+   2692		  00000140 000000F0   +
+   2693		  00000000 00000000   +
+   2694		  00000280 000001E0
+   2695	00000E83  00000000 00000000	 srMemory dd 0,0
+   2696
+   2697	00000E8B			 dataseg
+   2698	00000E8B  2A 00			 szDeviceToken db '*',0
+   2699
+   2700	00000E8D			 udataseg
+   2701	00000656  ????????		 hbmMemory dd ?
+   2702	0000065A  ????????		 hdcMemory dd ?
+   2703	0000065E  ????????		 hdcScreen dd ?
+   2704	00000662  ????????		 hpsMemory dd ?
+   2705	00000666  ????????		 hpsScreen dd ?
+   2706
+   2707	0000066A			 dataseg
+   2708	00000E8D  00			 SnapShot db 0 ; done
+   2709
+   2710	00000E8E			 codeseg
+   2711	00000EE1			 proc ClientWinProc c near
+   2712					 arg @@hwnd,@@msg,@@mp1,@@mp2
+   2713					 ; refresh video display screen
+1  2714	00000EE1  C8 0000 00			 ENTERD	 00000h,0
+1  2715	00000EE5  83 7D	0C 23		   cmp [@@msg],23h ; WM_PAINT
+   2716	00000EE9  75 6A			   jne NotRefreshScreen
+   2717					   call	WinBeginPaint c,[@@hwnd],0,0
+1  2718	00000EEB  6A 00				 PUSH	 0
+1  2719	00000EED  6A 00				 PUSH	 0
+1  2720	00000EEF  FF 75	08			 PUSH	 [@@HWND]
+1  2721	00000EF2  E8 00000000e			 CALL	 WINBEGINPAINT
+1  2722	00000EF7  83 C4	0C			 ADD	 ESP,0000Ch
+   2723	00000EFA  A3 00000666r		   mov [hpsScreen],eax ; save
+   2724					   call	GpiSetBitmapBits c,[hpsMemory],0,Iy,offset(rgbBuffer),offset(bhMemory)
+1  2725	00000EFF  68 00000E57r			 PUSH	 OFFSET(BHMEMORY)
+1  2726	00000F04  68 00096672r			 PUSH	 OFFSET(RGBBUFFER)
+1  2727	00000F09  68 000001E0			 PUSH	 IY
+1  2728	00000F0E  6A 00				 PUSH	 0
+1  2729	00000F10  FF 35	00000662r		 PUSH	 [HPSMEMORY]
+1  2730	00000F16  E8 00000000e			 CALL	 GPISETBITMAPBITS
+1  2731	00000F1B  83 C4	14			 ADD	 ESP,00014h
+   2732					   call	GpiBitBlt c,[hpsScreen],[hpsMemory],4,offset(paMemory),0CCh,2
+1  2733	00000F1E  6A 02				 PUSH	 2
+1  2734	00000F20  68 000000CC			 PUSH	 0CCH
+1  2735	00000F25  68 00000E63r			 PUSH	 OFFSET(PAMEMORY)
+1  2736	00000F2A  6A 04				 PUSH	 4
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 49
+webview.asm
+
+
+
+1  2737	00000F2C  FF 35	00000662r		 PUSH	 [HPSMEMORY]
+1  2738	00000F32  FF 35	00000666r		 PUSH	 [HPSSCREEN]
+1  2739	00000F38  E8 00000000e			 CALL	 GPIBITBLT
+1  2740	00000F3D  83 C4	18			 ADD	 ESP,00018h
+   2741					   call	WinEndPaint c,[hpsScreen]
+1  2742	00000F40  FF 35	00000666r		 PUSH	 [HPSSCREEN]
+1  2743	00000F46  E8 00000000e			 CALL	 WINENDPAINT
+1  2744	00000F4B  83 C4	04			 ADD	 ESP,00004h
+   2745	00000F4E  B8 00000001		   mov eax,1 ; done
+1  2746	00000F53  C9				 LEAVED
+1  2747	00000F54  C3				 RET	 00000h
+   2748	00000F55			 label NotRefreshScreen	near
+   2749					 ; handle command input
+   2750	00000F55  83 7D	0C 20		   cmp [@@msg],20h ; WM_COMMAND
+   2751	00000F59  75 14			   jne NotCommand
+   2752					 ; take	snapshot
+   2753	00000F5B  8B 45	10		   mov eax,[@@mp1]
+   2754	00000F5E  3C 01			   cmp al,1 ; SnapShot
+   2755	00000F60  72 09			   jb NotSnapshot
+   2756	00000F62  3C 02			   cmp al,2 ; TestShot
+   2757	00000F64  77 05			   ja NotSnapshot
+   2758	00000F66  A2 00000E8Dr		   mov [SnapShot],al
+   2759	00000F6B			 label NotSnapshot near
+   2760	00000F6B  2B C0			   sub eax,eax ; reserved
+1  2761	00000F6D  C9				 LEAVED
+1  2762	00000F6E  C3				 RET	 00000h
+   2763	00000F6F			 label NotCommand near
+   2764					 ; exit	usb camera request
+   2765	00000F6F  83 7D	0C 2A		   cmp [@@msg],2Ah ; WM_QUIT
+   2766	00000F73  75 07			   jne NotExitCamera
+   2767	00000F75  B8 00000001		   mov eax,1 ; done
+1  2768	00000F7A  C9				 LEAVED
+1  2769	00000F7B  C3				 RET	 00000h
+   2770	00000F7C			 label NotExitCamera near
+   2771					 ; create video	display	screen
+   2772	00000F7C  83 7D	0C 01		   cmp [@@msg],1 ; WM_CREATE
+   2773	00000F80  75 79			   jne NotCreateScreen
+   2774					   call	DevOpenDC c,[hab],8,offset(szDeviceToken),0,0,0
+1  2775	00000F82  6A 00				 PUSH	 0
+1  2776	00000F84  6A 00				 PUSH	 0
+1  2777	00000F86  6A 00				 PUSH	 0
+1  2778	00000F88  68 00000E8Br			 PUSH	 OFFSET(SZDEVICETOKEN)
+1  2779	00000F8D  6A 08				 PUSH	 8
+1  2780	00000F8F  FF 35	00000616r		 PUSH	 [HAB]
+1  2781	00000F95  E8 00000000e			 CALL	 DEVOPENDC
+1  2782	00000F9A  83 C4	18			 ADD	 ESP,00018h
+   2783	00000F9D  A3 0000065Ar		   mov [hdcMemory],eax ; save
+   2784					   call	GpiCreatePS c,[hab],[hdcMemory],offset(srMemory),5008h
+1  2785	00000FA2  68 00005008			 PUSH	 5008H
+1  2786	00000FA7  68 00000E83r			 PUSH	 OFFSET(SRMEMORY)
+1  2787	00000FAC  FF 35	0000065Ar		 PUSH	 [HDCMEMORY]
+1  2788	00000FB2  FF 35	00000616r		 PUSH	 [HAB]
+1  2789	00000FB8  E8 00000000e			 CALL	 GPICREATEPS
+1  2790	00000FBD  83 C4	10			 ADD	 ESP,00010h
+   2791	00000FC0  A3 00000662r		   mov [hpsMemory],eax ; save
+   2792					   call	GpiCreateBitmap	c,[hpsMemory],offset(bhMemory),0,0,0
+1  2793	00000FC5  6A 00				 PUSH	 0
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 50
+webview.asm
+
+
+
+1  2794	00000FC7  6A 00				 PUSH	 0
+1  2795	00000FC9  6A 00				 PUSH	 0
+1  2796	00000FCB  68 00000E57r			 PUSH	 OFFSET(BHMEMORY)
+1  2797	00000FD0  FF 35	00000662r		 PUSH	 [HPSMEMORY]
+1  2798	00000FD6  E8 00000000e			 CALL	 GPICREATEBITMAP
+1  2799	00000FDB  83 C4	14			 ADD	 ESP,00014h
+   2800	00000FDE  A3 00000656r		   mov [hbmMemory],eax ; save
+   2801					   call	GpiSetBitmap c,[hpsMemory],[hbmMemory]
+1  2802	00000FE3  FF 35	00000656r		 PUSH	 [HBMMEMORY]
+1  2803	00000FE9  FF 35	00000662r		 PUSH	 [HPSMEMORY]
+1  2804	00000FEF  E8 00000000e			 CALL	 GPISETBITMAP
+1  2805	00000FF4  83 C4	08			 ADD	 ESP,00008h
+   2806	00000FF7  2B C0			   sub eax,eax ; continue
+1  2807	00000FF9  C9				 LEAVED
+1  2808	00000FFA  C3				 RET	 00000h
+   2809	00000FFB			 label NotCreateScreen near
+   2810					 ; destroy video display sceen
+   2811	00000FFB  83 7D	0C 02		   cmp [@@msg],2 ; WM_DESTROY
+   2812	00000FFF  75 31			   jne NotDestroyScreen
+   2813					   call	GpiDeleteBitmap	c,[hbmMemory]
+1  2814	00001001  FF 35	00000656r		 PUSH	 [HBMMEMORY]
+1  2815	00001007  E8 00000000e			 CALL	 GPIDELETEBITMAP
+1  2816	0000100C  83 C4	04			 ADD	 ESP,00004h
+   2817					   call	GpiDestroyPS c,[hdcMemory]
+1  2818	0000100F  FF 35	0000065Ar		 PUSH	 [HDCMEMORY]
+1  2819	00001015  E8 00000000e			 CALL	 GPIDESTROYPS
+1  2820	0000101A  83 C4	04			 ADD	 ESP,00004h
+   2821					   call	DevCloseDC c,[hpsMemory]
+1  2822	0000101D  FF 35	00000662r		 PUSH	 [HPSMEMORY]
+1  2823	00001023  E8 00000000e			 CALL	 DEVCLOSEDC
+1  2824	00001028  83 C4	04			 ADD	 ESP,00004h
+   2825	0000102B  B8 00000001		   mov eax,1 ; done
+1  2826	00001030  C9				 LEAVED
+1  2827	00001031  C3				 RET	 00000h
+   2828	00001032			 label NotDestroyScreen	near
+   2829					 ; pass	message	to default window processing
+   2830					   call	WinDefWindowProc c,[@@hwnd],[@@msg],[@@mp1],[@@mp2]
+1  2831	00001032  FF 75	14			 PUSH	 [@@MP2]
+1  2832	00001035  FF 75	10			 PUSH	 [@@MP1]
+1  2833	00001038  FF 75	0C			 PUSH	 [@@MSG]
+1  2834	0000103B  FF 75	08			 PUSH	 [@@HWND]
+1  2835	0000103E  E8 00000000e			 CALL	 WINDEFWINDOWPROC
+1  2836	00001043  83 C4	10			 ADD	 ESP,00010h
+1  2837	00001046  C9				 LEAVED
+1  2838	00001047  C3				 RET	 00000h
+   2839	00001048			 endp ClientWinProc
+   2840
+   2841	00001048			 udataseg
+   2842	0000066A  ????????		 WinOldWindowProc dd ?
+   2843
+   2844	0000066E			 codeseg
+   2845	00001048			 proc FrameWinProc c near
+   2846					 arg @@hwnd,@@msg,@@mp1,@@mp2
+   2847					 uses ebx,ecx,edx,edi,esi
+   2848					 ; handle window minimize/maximize
+1  2849	00001048  C8 0000 00			 ENTERD	 00000h,0
+1  2850	0000104C  53				 PUSH	 EBX
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 51
+webview.asm
+
+
+
+1  2851	0000104D  51				 PUSH	 ECX
+1  2852	0000104E  52				 PUSH	 EDX
+1  2853	0000104F  57				 PUSH	 EDI
+1  2854	00001050  56				 PUSH	 ESI
+1  2855	00001051  83 7D	0C 46		   cmp [@@msg],46h ; WM_MINMAXFRAME
+   2856	00001055  0F 85	00000085	   jne PassToOldFrameProcedure
+   2857	0000105B  8B 45	10		   mov eax,[@@mp1] ; swp pointer
+   2858					 ; set maximum window size
+   2859	0000105E  F7 00	00000800	   test	[dword(eax)+0*4],800h ;	SWP_MAXIMIZE
+   2860	00001064  74 5E			   jz NotMaximizeWindow
+   2861					 ; preset small	camera screen size
+   2862	00001066  8B 0D	0000064Ar	   mov ecx,[yWindowSize] ; small height
+   2863	0000106C  8B 15	00000646r	   mov edx,[xWindowSize] ; small width
+   2864					 ; check large size fits on screen
+   2865	00001072  8D 99	000000F0	   lea ebx,[ecx+Oy] ; large height
+   2866	00001078  3B 58	04		   cmp ebx,[eax+1*4] ; old cymax
+   2867	0000107B  77 2B			   ja UpdateHeightPosition ; no
+   2868	0000107D  8D 9A	00000140	   lea ebx,[edx+Ox] ; large width
+   2869	00001083  3B 58	08		   cmp ebx,[eax+2*4] ; old cxmax
+   2870	00001086  77 20			   ja UpdateHeightPosition ; no
+   2871					 ; setup large camera screen size
+   2872	00001088  8D 89	000000F0	   lea ecx,[ecx+Oy] ; large height
+   2873	0000108E  8D 92	00000140	   lea edx,[edx+Ox] ; large width
+   2874					 ; update window height/width
+   2875	00001094  C7 05	00000E6Fr     +	   mov [paMemory+3*4],Oy*2
+   2876		  000001E0
+   2877	0000109E  C7 05	00000E6Br     +	   mov [paMemory+2*4],Ox*2
+   2878		  00000280
+   2879	000010A8			 label UpdateHeightPosition near
+   2880					 ; update maximum height/position
+   2881	000010A8  8B 58	04		   mov ebx,[eax+1*4] ; old cymax
+   2882	000010AB  89 48	04		   mov [eax+1*4],ecx ; new cymax
+   2883	000010AE  2B D9			   sub ebx,ecx ; max position
+   2884	000010B0  D1 EB			   shr ebx,1 ; center position
+   2885	000010B2  01 58	0C		   add [eax+3*4],ebx ; ypos
+   2886					 ; update maximum width/position
+   2887	000010B5  8B 58	08		   mov ebx,[eax+2*4] ; old cxmax
+   2888	000010B8  89 50	08		   mov [eax+2*4],edx ; new cxmax
+   2889	000010BB  2B DA			   sub ebx,edx ; max position
+   2890	000010BD  D1 EB			   shr ebx,1 ; center position
+   2891	000010BF  01 58	10		   add [eax+4*4],ebx ; xpos
+   2892	000010C2  EB 1C			   jmp PassToOldFrameProcedure
+   2893	000010C4			 label NotMaximizeWindow near
+   2894					 ; set restored	window size
+   2895	000010C4  F7 00	00001000	   test	[dword(eax)+0*4],1000h ; SWP_RESTORE
+   2896	000010CA  74 14			   jz NotRestoreWindow
+   2897					 ; update window height/width
+   2898	000010CC  C7 05	00000E6Fr     +	   mov [paMemory+3*4],Oy*1
+   2899		  000000F0
+   2900	000010D6  C7 05	00000E6Br     +	   mov [paMemory+2*4],Ox*1
+   2901		  00000140
+   2902	000010E0			 label NotRestoreWindow	near
+   2903	000010E0			 label PassToOldFrameProcedure near
+   2904					 ; pass	message	to default window processing
+   2905					   call	[WinOldWindowProc] c,[@@hwnd],[@@msg],[@@mp1],[@@mp2]
+1  2906	000010E0  FF 75	14			 PUSH	 [@@MP2]
+1  2907	000010E3  FF 75	10			 PUSH	 [@@MP1]
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 52
+webview.asm
+
+
+
+1  2908	000010E6  FF 75	0C			 PUSH	 [@@MSG]
+1  2909	000010E9  FF 75	08			 PUSH	 [@@HWND]
+1  2910	000010EC  FF 15	0000066Ar		 CALL	 [WINOLDWINDOWPROC]
+1  2911	000010F2  83 C4	10			 ADD	 ESP,00010h
+1  2912	000010F5  5E				 POP	 ESI
+1  2913	000010F6  5F				 POP	 EDI
+1  2914	000010F7  5A				 POP	 EDX
+1  2915	000010F8  59				 POP	 ECX
+1  2916	000010F9  5B				 POP	 EBX
+1  2917	000010FA  C9				 LEAVED
+1  2918	000010FB  C3				 RET	 00000h
+   2919	000010FC			 endp FrameWinProc
+   2920
+   2921	000010FC			 udataseg
+   2922	0000066E  ????????		 ClientSocket dd ?
+   2923
+   2924	00000672			 dataseg
+   2925		  =3791			 port=14225
+   2926	00000E8E  02 00	37 91 7F 00 00+	 SocketAddress db 2,0,high(port),low(port),127,0,0,1,8 dup(0) ;	localhost
+   2927		  01 08*(00)
+   2928
+   2929	00000E9E			 udataseg
+   2930					 ; image buffer
+   2931	00000672  04B000*(??)		 InBuffer db Ix*Iy dup(?)
+   2932
+   2933	0004B672			 dataseg
+   2934	00000E9E  00			 GoodInput db 0
+   2935
+   2936	00000E9F			 codeseg
+   2937	000010FC			 proc ObtainThread c near
+   2938					 arg @@parameter:dword
+   2939					 local @@hab:dword
+   2940					 local @@hmq:dword
+   2941					 ; obtain anchor block handle
+1  2942	000010FC  C8 0008 00			 ENTERD	 00008h,0
+1  2943					   call	WinInitialize c,0
+2  2944	00001100  6A 00				 PUSH	 0
+2  2945	00001102  E8 00000000e			 CALL	 WININITIALIZE
+2  2946	00001107  83 C4	04			 ADD	 ESP,00004h
+   2947	0000110A  85 C0			   test	eax,eax	; success
+   2948	0000110C  0F 84	0000027F	   jz EndObtainThread
+   2949	00001112  89 45	FC		   mov [@@hab],eax ; save
+   2950					 ; obtain message queue	handle
+   2951					   call	WinCreateMsgQueue c,[@@hab],0
+1  2952	00001115  6A 00				 PUSH	 0
+1  2953	00001117  FF 75	FC			 PUSH	 [@@HAB]
+1  2954	0000111A  E8 00000000e			 CALL	 WINCREATEMSGQUEUE
+1  2955	0000111F  83 C4	08			 ADD	 ESP,00008h
+   2956	00001122  85 C0			   test	eax,eax	; success
+   2957	00001124  0F 84	0000025C	   jz EndObtainMsgQueue
+   2958	0000112A  89 45	F8		   mov [@@hmq],eax ; save
+   2959	0000112D  55			   push	ebp ; save register
+   2960	0000112E			 label TryIsochronousread near
+   2961					 ; limit maximum polling rate
+   2962					   call	DosSleep c,30 ;	mSeconds
+1  2963	0000112E  6A 1E				 PUSH	 30
+1  2964	00001130  E8 00000000e			 CALL	 DOSSLEEP
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 53
+webview.asm
+
+
+
+1  2965	00001135  83 C4	04			 ADD	 ESP,00004h
+   2966	00001138			 label RawIsochronousRead near
+   2967					 ; take	usb camera snapshot
+   2968	00001138  80 3D	00000E8Dr 01	   cmp [SnapShot],1 ; take
+   2969	0000113F  0F 85	0000007D	   jne EndTakeSnapShot ; no
+   2970	00001145  C6 05	00000E8Dr 00	   mov [SnapShot],0 ; done
+   2971					 ; write usb camera bmap image
+   2972	0000114C  E8 00000276		   call	rgb2bmp	; webview.bmp
+   2973					 ; write usb camera jpeg image
+   2974	00001151  E8 FFFFF99B		   call	rgb2jpg	; webview.jpg
+   2975					 ; invoke rexx post processing
+   2976					   call	RexxStart c,1,offset(ArgList),offset(RexxFile),0,0,0,0,offset(ReturnCode),offset    +
+   2977					 (Result)
+1  2978	00001156  68 0017767Er			 PUSH	 OFFSET(RESULT)
+1  2979	0000115B  68 0017767Ar			 PUSH	 OFFSET(RETURNCODE)
+1  2980	00001160  6A 00				 PUSH	 0
+1  2981	00001162  6A 00				 PUSH	 0
+1  2982	00001164  6A 00				 PUSH	 0
+1  2983	00001166  6A 00				 PUSH	 0
+1  2984	00001168  68 00000EAFr			 PUSH	 OFFSET(REXXFILE)
+1  2985	0000116D  68 00177672r			 PUSH	 OFFSET(ARGLIST)
+1  2986	00001172  6A 01				 PUSH	 1
+1  2987	00001174  E8 00000000e			 CALL	 REXXSTART
+1  2988	00001179  83 C4	24			 ADD	 ESP,00024h
+   2989	0000117C  85 C0			   test	eax,eax	; return code
+   2990	0000117E  75 42			   jnz EndFreeString ; failure
+   2991					 ; handle exit/return value
+   2992	00001180  8B 3D	00177682r	   mov edi,[Result+4] ;	buffer
+   2993	00001186  85 FF			   test	edi,edi	; allocated
+   2994	00001188  74 38			   jz EndFreeString ; no
+   2995					 ; show	exit/return string
+   2996	0000118A  3B 05	0017767Er	   cmp eax,[Result] ; empty
+   2997	00001190  74 1E			   je EndShowString ; yes
+   2998	00001192  A3 0017767Er		   mov [Result],eax ; empty
+   2999					   call	WinMessageBox c,1,1,edi,offset(szWindowTitle),0,4030h
+1  3000	00001197  68 00004030			 PUSH	 4030H
+1  3001	0000119C  6A 00				 PUSH	 0
+1  3002	0000119E  68 00000517r			 PUSH	 OFFSET(SZWINDOWTITLE)
+1  3003	000011A3  57				 PUSH	 EDI
+1  3004	000011A4  6A 01				 PUSH	 1
+1  3005	000011A6  6A 01				 PUSH	 1
+1  3006	000011A8  E8 00000000e			 CALL	 WINMESSAGEBOX
+1  3007	000011AD  83 C4	18			 ADD	 ESP,00018h
+   3008	000011B0			 label EndShowString near
+   3009					 ; free	allocated storage
+   3010					   call	DosFreeMem c,edi
+1  3011	000011B0  57				 PUSH	 EDI
+1  3012	000011B1  E8 00000000e			 CALL	 DOSFREEMEM
+1  3013	000011B6  83 C4	04			 ADD	 ESP,00004h
+   3014	000011B9  85 C0			   test	eax,eax	; any errors
+   3015	000011BB  75 05			   jnz EndFreeString ; failure
+   3016	000011BD  A3 00177682r		   mov [Result+4],eax ;	free
+   3017	000011C2			 label EndFreeString near
+   3018	000011C2			 label EndTakeSnapShot near
+   3019					 ; open	webview	client socket
+   3020					   call	socket c,2,1,6 ; create
+1  3021	000011C2  6A 06				 PUSH	 6
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 54
+webview.asm
+
+
+
+1  3022	000011C4  6A 01				 PUSH	 1
+1  3023	000011C6  6A 02				 PUSH	 2
+1  3024	000011C8  E8 00000000e			 CALL	 SOCKET
+1  3025	000011CD  83 C4	0C			 ADD	 ESP,0000Ch
+   3026	000011D0  83 F8	FF		   cmp eax,-1 ;	check for errors
+   3027	000011D3  75 3E			   jne SocketCreated ; success
+   3028					 ; show	appropriate error message
+   3029					   call	WinLoadString c,[hab],0,01h,255,offset(szMessageText)
+1  3030	000011D5  68 00000418r			 PUSH	 OFFSET(SZMESSAGETEXT)
+1  3031	000011DA  68 000000FF			 PUSH	 255
+1  3032	000011DF  6A 01				 PUSH	 01H
+1  3033	000011E1  6A 00				 PUSH	 0
+1  3034	000011E3  FF 35	00000616r		 PUSH	 [HAB]
+1  3035	000011E9  E8 00000000e			 CALL	 WINLOADSTRING
+1  3036	000011EE  83 C4	14			 ADD	 ESP,00014h
+   3037					   call	WinMessageBox c,1,1,offset(szMessageText),offset(szWindowTitle),0,4046h
+1  3038	000011F1  68 00004046			 PUSH	 4046H
+1  3039	000011F6  6A 00				 PUSH	 0
+1  3040	000011F8  68 00000517r			 PUSH	 OFFSET(SZWINDOWTITLE)
+1  3041	000011FD  68 00000418r			 PUSH	 OFFSET(SZMESSAGETEXT)
+1  3042	00001202  6A 01				 PUSH	 1
+1  3043	00001204  6A 01				 PUSH	 1
+1  3044	00001206  E8 00000000e			 CALL	 WINMESSAGEBOX
+1  3045	0000120B  83 C4	18			 ADD	 ESP,00018h
+   3046	0000120E  E9 000000A0		   jmp EndSocketAttempt
+   3047	00001213			 label SocketCreated near
+   3048	00001213  A3 0000066Er		   mov [ClientSocket],eax
+   3049					 ; connect to server socket
+   3050					   call	connect	c,[ClientSocket],offset(SocketAddress),16
+1  3051	00001218  6A 10				 PUSH	 16
+1  3052	0000121A  68 00000E8Er			 PUSH	 OFFSET(SOCKETADDRESS)
+1  3053	0000121F  FF 35	0000066Er		 PUSH	 [CLIENTSOCKET]
+1  3054	00001225  E8 00000000e			 CALL	 CONNECT
+1  3055	0000122A  83 C4	0C			 ADD	 ESP,0000Ch
+   3056	0000122D  83 F8	FF		   cmp eax,-1 ;	check for errors
+   3057	00001230  74 35			   je CloseClient ; failure
+   3058					 ; point to input buffer
+   3059	00001232  BF 00000672r		   mov edi,offset(InBuffer)
+   3060	00001237			 label ObtainResponse near
+   3061					 ; protect against buffer overflow
+   3062	00001237  81 FF	0004B272r	   cmp edi,offset(Inbuffer+Ix*Iy-1024)
+   3063	0000123D  77 28			   ja CloseClient ; ignore input
+   3064					 ; obtain http response	from server
+   3065					   call	recv c,[ClientSocket],edi,1024,0
+1  3066	0000123F  6A 00				 PUSH	 0
+1  3067	00001241  68 00000400			 PUSH	 1024
+1  3068	00001246  57				 PUSH	 EDI
+1  3069	00001247  FF 35	0000066Er		 PUSH	 [CLIENTSOCKET]
+1  3070	0000124D  E8 00000000e			 CALL	 RECV
+1  3071	00001252  83 C4	10			 ADD	 ESP,00010h
+   3072	00001255  83 F8	FF		   cmp eax,-1 ;	check for errors
+   3073	00001258  74 0D			   je CloseClient ; failure
+   3074	0000125A  03 F8			   add edi,eax ; bump pointer
+   3075	0000125C  85 C0			   test	eax,eax	; more
+   3076	0000125E  75 D7			   jnz ObtainResponse
+   3077					 ; mark	input received
+   3078	00001260  C6 05	00000E9Er 01	   mov [GoodInput],1
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 55
+webview.asm
+
+
+
+   3079	00001267			 label CloseClient near
+   3080					 ; close webview client	socket
+   3081					   call	soclose	c,[ClientSocket]
+1  3082	00001267  FF 35	0000066Er		 PUSH	 [CLIENTSOCKET]
+1  3083	0000126D  E8 00000000e			 CALL	 SOCLOSE
+1  3084	00001272  83 C4	04			 ADD	 ESP,00004h
+   3085	00001275  83 F8	FF		   cmp eax,-1 ;	check for errors
+   3086	00001278  75 39			   jne EndSocketAttempt	; success
+   3087					 ; show	appropriate error message
+   3088					   call	WinLoadString c,[hab],0,02h,255,offset(szMessageText)
+1  3089	0000127A  68 00000418r			 PUSH	 OFFSET(SZMESSAGETEXT)
+1  3090	0000127F  68 000000FF			 PUSH	 255
+1  3091	00001284  6A 02				 PUSH	 02H
+1  3092	00001286  6A 00				 PUSH	 0
+1  3093	00001288  FF 35	00000616r		 PUSH	 [HAB]
+1  3094	0000128E  E8 00000000e			 CALL	 WINLOADSTRING
+1  3095	00001293  83 C4	14			 ADD	 ESP,00014h
+   3096					   call	WinMessageBox c,1,1,offset(szMessageText),offset(szWindowTitle),0,4046h
+1  3097	00001296  68 00004046			 PUSH	 4046H
+1  3098	0000129B  6A 00				 PUSH	 0
+1  3099	0000129D  68 00000517r			 PUSH	 OFFSET(SZWINDOWTITLE)
+1  3100	000012A2  68 00000418r			 PUSH	 OFFSET(SZMESSAGETEXT)
+1  3101	000012A7  6A 01				 PUSH	 1
+1  3102	000012A9  6A 01				 PUSH	 1
+1  3103	000012AB  E8 00000000e			 CALL	 WINMESSAGEBOX
+1  3104	000012B0  83 C4	18			 ADD	 ESP,00018h
+   3105	000012B3			 label EndSocketAttempt	near
+   3106	000012B3  C7 05	0000066Er     +	   mov [ClientSocket],0
+   3107		  00000000
+   3108					 ; verify valid	input received
+   3109	000012BD  80 3D	00000E9Er 01	   cmp [GoodInput],1 ; valid
+   3110	000012C4  0F 85	FFFFFE64	   jne TryIsochronousRead
+   3111	000012CA  C6 05	00000E9Er 00	   mov [GoodInput],0 ; reset
+   3112					 ; point to input buffer
+   3113	000012D1  BE 00000672r		   mov esi,offset(InBuffer)
+   3114					 ; verify mjpg image present
+   3115	000012D6  81 3E	E0FFD8FF	   cmp [dword(esi)],0E0FFD8FFh
+   3116	000012DC  0F 85	FFFFFE56	   jne RawIsochronousRead
+   3117	000012E2  66| 81 7F FE D9FF	   cmp [word(edi-2)],0D9FFh
+   3118	000012E8  0F 85	FFFFFE4A	   jne RawIsochronousRead
+   3119					 ; take	usb camera testshot
+   3120	000012EE  80 3D	00000E8Dr 02	   cmp [SnapShot],2 ; take
+   3121	000012F5  75 0C			   jne EndTakeTestShot ; no
+   3122	000012F7  C6 05	00000E8Dr 00	   mov [SnapShot],0 ; done
+   3123					 ; write usb camera jpeg image
+   3124	000012FE  E8 00000144		   call	jpg2raw	; webview.raw
+   3125	00001303			 label EndTakeTestShot near
+   3126					 ; make	rgb from mjpg
+   3127	00001303  C6 05	00000A64r 01	   mov [GoodImage],1
+   3128	0000130A  E8 FFFFF602		   call	jpg2rgb
+   3129	0000130F  80 3D	00000A64r 01	   cmp [GoodImage],1
+   3130	00001316  0F 85	FFFFFE1C	   jne RawIsochronousRead
+   3131					 ; trigger presentation	manager	screen update
+   3132					   call	WinInvalidateRect c,[hwndClient],0,0
+1  3133	0000131C  6A 00				 PUSH	 0
+1  3134	0000131E  6A 00				 PUSH	 0
+1  3135	00001320  FF 35	0000061Er		 PUSH	 [HWNDCLIENT]
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 56
+webview.asm
+
+
+
+1  3136	00001326  E8 00000000e			 CALL	 WININVALIDATERECT
+1  3137	0000132B  83 C4	0C			 ADD	 ESP,0000Ch
+   3138	0000132E  85 C0			   test	eax,eax	; check	for errors
+   3139	00001330  0F 85	FFFFFE02	   jnz RawIsochronousRead ; next
+   3140	00001336  5D			   pop ebp ; restore register
+   3141	00001337  E8 00000061		   call	ShowReturnCode ; zero
+   3142					 ; show	appropriate error message
+   3143					   call	WinLoadString c,[@@hab],0,03h,244,offset(szMessageText+11)
+1  3144	0000133C  68 00000423r			 PUSH	 OFFSET(SZMESSAGETEXT+11)
+1  3145	00001341  68 000000F4			 PUSH	 244
+1  3146	00001346  6A 03				 PUSH	 03H
+1  3147	00001348  6A 00				 PUSH	 0
+1  3148	0000134A  FF 75	FC			 PUSH	 [@@HAB]
+1  3149	0000134D  E8 00000000e			 CALL	 WINLOADSTRING
+1  3150	00001352  83 C4	14			 ADD	 ESP,00014h
+   3151					   call	WinMessageBox c,1,1,offset(szMessageText),offset(szWindowTitle),0,4046h
+1  3152	00001355  68 00004046			 PUSH	 4046H
+1  3153	0000135A  6A 00				 PUSH	 0
+1  3154	0000135C  68 00000517r			 PUSH	 OFFSET(SZWINDOWTITLE)
+1  3155	00001361  68 00000418r			 PUSH	 OFFSET(SZMESSAGETEXT)
+1  3156	00001366  6A 01				 PUSH	 1
+1  3157	00001368  6A 01				 PUSH	 1
+1  3158	0000136A  E8 00000000e			 CALL	 WINMESSAGEBOX
+1  3159	0000136F  83 C4	18			 ADD	 ESP,00018h
+   3160					   call	WinPostQueueMsg	c,[hmq],2Ah,0,0	; WM_QUIT
+1  3161	00001372  6A 00				 PUSH	 0
+1  3162	00001374  6A 00				 PUSH	 0
+1  3163	00001376  6A 2A				 PUSH	 2AH
+1  3164	00001378  FF 35	0000061Ar		 PUSH	 [HMQ]
+1  3165	0000137E  E8 00000000e			 CALL	 WINPOSTQUEUEMSG
+1  3166	00001383  83 C4	10			 ADD	 ESP,00010h
+   3167	00001386			 label EndObtainMsgQueue near
+   3168					   call	WinTerminate c,[@@hab]
+1  3169	00001386  FF 75	FC			 PUSH	 [@@HAB]
+1  3170	00001389  E8 00000000e			 CALL	 WINTERMINATE
+1  3171	0000138E  83 C4	04			 ADD	 ESP,00004h
+   3172	00001391			 label EndObtainThread near
+   3173					 ; exit	the obtain thread
+   3174					   call	DosExit	c,0,0
+1  3175	00001391  6A 00				 PUSH	 0
+1  3176	00001393  6A 00				 PUSH	 0
+1  3177	00001395  E8 00000000e			 CALL	 DOSEXIT
+1  3178	0000139A  83 C4	08			 ADD	 ESP,00008h
+   3179	0000139D			 endp ObtainThread
+   3180
+   3181	0000139D			 dataseg
+   3182	00000E9F  30 31	32 33 34 35 36+	 hex2ascii db '0123456789ABCDEF'
+   3183		  37 38	39 41 42 43 44+
+   3184		  45 46
+   3185
+   3186	00000EAF			 codeseg
+   3187	0000139D			 proc ShowReturnCode near
+   3188					 ; prepare message text
+   3189	0000139D  BF 00000418r		   lea edi,[szMessageText]
+   3190	000013A2  C6 47	0A 20		   mov [byte(edi+0Ah)],' '
+   3191	000013A6  C6 47	09 5D		   mov [byte(edi+09h)],']'
+   3192	000013AA  C6 07	5B		   mov [byte(edi)],'['
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 57
+webview.asm
+
+
+
+   3193					 ; convert return code
+   3194	000013AD  2B C9			   sub ecx,ecx ; count
+   3195	000013AF  2B D2			   sub edx,edx ; index
+   3196	000013B1  B1 08			   mov cl,08h ;	digits
+   3197	000013B3			 label ConvertDigit near
+   3198	000013B3  8A D0			   mov dl,al ; one byte
+   3199	000013B5  80 E2	0F		   and dl,0Fh ;	hex digit
+   3200	000013B8  8A 92	00000E9Fr	   mov dl,[hex2ascii+edx]
+   3201	000013BE  88 14	0F		   mov [edi+ecx],dl ; ascii
+   3202	000013C1  C1 E8	04		   shr eax,4 ; next one
+   3203	000013C4  E2 ED			   loop	ConvertDigit
+   3204	000013C6  C3			   ret ; return
+   3205	000013C7			 endp ShowReturnCode
+   3206
+   3207	000013C7			 udataseg
+   3208	0004B672  04B000*(??)		 outBuffer db Ix*Iy*1 dup(?)
+   3209	00096672  0E1000*(??)		 rgbBuffer db Ix*Iy*3 dup(?)
+   3210
+   3211	00177672			 dataseg
+   3212	00000EAF  77 65	62 76 69 65 77+	 RexxFile db 'webview.cmd',0
+   3213		  2E 63	6D 64 00
+   3214
+   3215	00000EBB			 udataseg
+   3216	00177672  ???????? ????????	 ArgList dd ?,?
+   3217	0017767A  ????????		 ReturnCode dd ?
+   3218	0017767E  ???????? ????????	 Result	dd ?,?
+   3219
+   3220	00177686			 dataseg
+   3221	00000EBB  4D42 0000 0000 0000 +	 bmpFileHeader dw 4D42h,0,0,0,0,14+12,0,12,0,Ix,Iy,1,24
+   3222		  0000 001A 0000 000C +
+   3223		  0000 0280 01E0 0001 +
+   3224		  0018
+   3225	00000ED5  77 65	62 76 69 65 77+	 szOutput db 'webview.bmp',0
+   3226		  2E 62	6D 70 00
+   3227
+   3228	00000EE1			 udataseg
+   3229	00177686  ????????		 BytesDone dd ?
+   3230	0017768A  ????????		 fhOutput dd ?
+   3231
+   3232	0017768E			 codeseg
+   3233	000013C7			 proc rgb2bmp near
+   3234					 ; write usb camera bitmap file
+   3235	000013C7  C7 05	00000EBDr     +	   mov [dword(bmpFileHeader)+2],14+12+Ix*Iy*3 ;	file size
+   3236		  000E101A
+   3237					   call	DosOpen	c,offset(szOutput),offset(fhOutput),offset(ActionTaken),0,0,012h,0191h,0
+1  3238	000013D1  6A 00				 PUSH	 0
+1  3239	000013D3  68 00000191			 PUSH	 0191H
+1  3240	000013D8  6A 12				 PUSH	 012H
+1  3241	000013DA  6A 00				 PUSH	 0
+1  3242	000013DC  6A 00				 PUSH	 0
+1  3243	000013DE  68 0000064Er			 PUSH	 OFFSET(ACTIONTAKEN)
+1  3244	000013E3  68 0017768Ar			 PUSH	 OFFSET(FHOUTPUT)
+1  3245	000013E8  68 00000ED5r			 PUSH	 OFFSET(SZOUTPUT)
+1  3246	000013ED  E8 00000000e			 CALL	 DOSOPEN
+1  3247	000013F2  83 C4	20			 ADD	 ESP,00020h
+   3248	000013F5  85 C0			   test	eax,eax	; check	for errors
+   3249	000013F7  75 4D			   jnz NotBitmap ; failure
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 58
+webview.asm
+
+
+
+   3250					   call	DosWrite c,[fhOutput],offset(bmpFileHeader),14+12,offset(BytesDone)
+1  3251	000013F9  68 00177686r			 PUSH	 OFFSET(BYTESDONE)
+1  3252	000013FE  6A 1A				 PUSH	 14+12
+1  3253	00001400  68 00000EBBr			 PUSH	 OFFSET(BMPFILEHEADER)
+1  3254	00001405  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+1  3255	0000140B  E8 00000000e			 CALL	 DOSWRITE
+1  3256	00001410  83 C4	10			 ADD	 ESP,00010h
+   3257	00001413  85 C0			   test	eax,eax	; check	for errors
+   3258	00001415  75 21			   jnz EndBitmap ; failure
+   3259					   call	DosWrite c,[fhOutput],offset(rgbBuffer),Ix*Iy*3,offset(BytesDone)
+1  3260	00001417  68 00177686r			 PUSH	 OFFSET(BYTESDONE)
+1  3261	0000141C  68 000E1000			 PUSH	 IX*IY*3
+1  3262	00001421  68 00096672r			 PUSH	 OFFSET(RGBBUFFER)
+1  3263	00001426  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+1  3264	0000142C  E8 00000000e			 CALL	 DOSWRITE
+1  3265	00001431  83 C4	10			 ADD	 ESP,00010h
+   3266	00001434  85 C0			   test	eax,eax	; check	for errors
+   3267	00001436  75 00			   jnz EndBitmap ; failure
+   3268	00001438			 label EndBitmap near
+   3269					 ; close bmp output file
+   3270					   call	DosClose c,[fhOutput]
+1  3271	00001438  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+1  3272	0000143E  E8 00000000e			 CALL	 DOSCLOSE
+1  3273	00001443  83 C4	04			 ADD	 ESP,00004h
+   3274	00001446			 label NotBitmap near
+   3275	00001446  C3			   ret ; return
+   3276	00001447			 endp rgb2bmp
+   3277
+   3278	00001447			 dataseg
+   3279	00000EE1  77 65	62 76 69 65 77+	 zsOutput db 'webview.raw',0
+   3280		  2E 72	61 77 00
+   3281
+   3282	00000EED			 codeseg
+   3283	00001447			 proc jpg2raw near
+   3284					 ; write usb camera jpeg file
+   3285					   call	DosOpen	c,offset(zsOutput),offset(fhOutput),offset(ActionTaken),0,0,012h,0191h,0
+1  3286	00001447  6A 00				 PUSH	 0
+1  3287	00001449  68 00000191			 PUSH	 0191H
+1  3288	0000144E  6A 12				 PUSH	 012H
+1  3289	00001450  6A 00				 PUSH	 0
+1  3290	00001452  6A 00				 PUSH	 0
+1  3291	00001454  68 0000064Er			 PUSH	 OFFSET(ACTIONTAKEN)
+1  3292	00001459  68 0017768Ar			 PUSH	 OFFSET(FHOUTPUT)
+1  3293	0000145E  68 00000EE1r			 PUSH	 OFFSET(ZSOUTPUT)
+1  3294	00001463  E8 00000000e			 CALL	 DOSOPEN
+1  3295	00001468  83 C4	20			 ADD	 ESP,00020h
+   3296	0000146B  85 C0			   test	eax,eax	; check	for errors
+   3297	0000146D  75 27			   jnz NotOutput ; failure
+   3298	0000146F  8B C7			   mov eax,edi ; after
+   3299	00001471  2B C6			   sub eax,esi ; start
+   3300					   call	DosWrite c,[fhOutput],esi,eax,offset(BytesDone)
+1  3301	00001473  68 00177686r			 PUSH	 OFFSET(BYTESDONE)
+1  3302	00001478  50				 PUSH	 EAX
+1  3303	00001479  56				 PUSH	 ESI
+1  3304	0000147A  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+1  3305	00001480  E8 00000000e			 CALL	 DOSWRITE
+1  3306	00001485  83 C4	10			 ADD	 ESP,00010h
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 59
+webview.asm
+
+
+
+   3307					 ; close raw output file
+   3308					   call	DosClose c,[fhOutput]
+1  3309	00001488  FF 35	0017768Ar		 PUSH	 [FHOUTPUT]
+1  3310	0000148E  E8 00000000e			 CALL	 DOSCLOSE
+1  3311	00001493  83 C4	04			 ADD	 ESP,00004h
+   3312	00001496			 label NotOutput near
+   3313	00001496  C3			   ret ; return
+   3314	00001497			 endp jpg2raw
+   3315
+   3316	00001497			 codeseg
+   3317	00001497			 proc dec2bin near
+   3318					 ; decimal to binary
+   3319	00001497  2B C0			   sub eax,eax ; input
+   3320	00001499  2B D2			   sub edx,edx ; output
+   3321	0000149B			 label ConvertInput near
+   3322	0000149B  47			   inc edi ; next position
+   3323	0000149C  8A 07			   mov al,[edi]	; digit
+   3324					 ; convert decimal digit
+   3325	0000149E  3C 30			   cmp al,'0' ;	minimum
+   3326	000014A0  72 0E			   jb Enddec2bin ; done
+   3327	000014A2  3C 39			   cmp al,'9' ;	maximum
+   3328	000014A4  77 0A			   ja Enddec2bin ; done
+   3329	000014A6  2C 30			   sub al,'0' ;	digit
+   3330	000014A8  8D 14	92		   lea edx,[edx*4+edx]
+   3331	000014AB  8D 14	50		   lea edx,[edx*2+eax]
+   3332	000014AE  EB EB			   jmp ConvertInput
+   3333	000014B0			 label Enddec2bin Near
+   3334	000014B0  C3			   ret ; return
+   3335	000014B1			 endp dec2bin
+   3336
+   3337	000014B1			 codeseg
+   3338	000014B1			 proc ProcessArguments near
+   3339					 ; scan	for forward slash
+   3340	000014B1  8A 07			   mov al,[edi]	; character
+   3341	000014B3  47			   inc edi ; next position
+   3342	000014B4  3C 00			   cmp al,00h ;	terminator
+   3343	000014B6  0F 84	00000083	   je EndScanString ; done
+   3344	000014BC  3C 2F			   cmp al,'/' ;	parameter
+   3345	000014BE  75 F1			   jne ProcessArguments
+   3346					 ; tcp/ip ipaddr argument
+   3347	000014C0  80 3F	61		   cmp [byte(edi)],'a'
+   3348	000014C3  75 4F			   jne NotIpAddress
+   3349	000014C5  E8 FFFFFFCD		   call	dec2bin	; convert
+   3350	000014CA  0F AC	D3 08		   shrd	ebx,edx,8 ; keep
+   3351					 ; check 1st ip	number
+   3352	000014CE  C1 EA	08		   shr edx,8 ; zeroes
+   3353	000014D1  75 DE			   jnz ProcessArguments
+   3354	000014D3  80 3F	2E		   cmp [byte(edi)],'.'
+   3355	000014D6  75 D9			   jne ProcessArguments
+   3356	000014D8  E8 FFFFFFBA		   call	dec2bin	; convert
+   3357	000014DD  0F AC	D3 08		   shrd	ebx,edx,8 ; keep
+   3358					 ; check 2nd ip	number
+   3359	000014E1  C1 EA	08		   shr edx,8 ; zeroes
+   3360	000014E4  75 CB			   jnz ProcessArguments
+   3361	000014E6  80 3F	2E		   cmp [byte(edi)],'.'
+   3362	000014E9  75 C6			   jne ProcessArguments
+   3363	000014EB  E8 FFFFFFA7		   call	dec2bin	; convert
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 60
+webview.asm
+
+
+
+   3364	000014F0  0F AC	D3 08		   shrd	ebx,edx,8 ; keep
+   3365					 ; check 3rd ip	number
+   3366	000014F4  C1 EA	08		   shr edx,8 ; zeroes
+   3367	000014F7  75 B8			   jnz ProcessArguments
+   3368	000014F9  80 3F	2E		   cmp [byte(edi)],'.'
+   3369	000014FC  75 B3			   jne ProcessArguments
+   3370	000014FE  E8 FFFFFF94		   call	dec2bin	; convert
+   3371	00001503  0F AC	D3 08		   shrd	ebx,edx,8 ; keep
+   3372					 ; check 4th ip	number
+   3373	00001507  C1 EA	08		   shr edx,8 ; zeroes
+   3374	0000150A  75 A5			   jnz ProcessArguments
+   3375					 ; store validated ip address
+   3376	0000150C  89 1D	00000E92r	   mov [dword(SocketAddress+4)],ebx
+   3377	00001512  EB 9D			   jmp ProcessArguments
+   3378	00001514			 label NotIpAddress near
+   3379					 ; tcp/ip port argument
+   3380	00001514  80 3F	70		   cmp [byte(edi)],'p'
+   3381	00001517  75 98			   jne ProcessArguments
+   3382	00001519  E8 FFFFFF79		   call	dec2bin	; convert
+   3383					 ; check tcp/ip	port number
+   3384	0000151E  81 FA	0000FFFF	   cmp edx,0FFFFh ; max
+   3385	00001524  77 8B			   ja ProcessArguments
+   3386	00001526  81 FA	00000400	   cmp edx,00400h ; min
+   3387	0000152C  72 83			   jb ProcessArguments
+   3388					 ; store tcp/ip	port number
+   3389	0000152E  88 15	00000E91r	   mov [SocketAddress+3],dl
+   3390	00001534  88 35	00000E90r	   mov [SocketAddress+2],dh
+   3391	0000153A  E9 FFFFFF72		   jmp ProcessArguments
+   3392	0000153F			 label EndScanString near
+   3393					 ; skip	sanity checks
+   3394	0000153F  C3			   ret ; return
+   3395	00001540			 endp ProcessArguments
+   3396
+   3397					 end MainRoutine
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 61
+Symbol Table
+
+
+
+
+Symbol Name			  Type	 Value
+
+??DATE				  Text	 "03-08-14"
+??FILENAME			  Text	 "webview "
+??TIME				  Text	 "18:27:01"
+??VERSION			  Number 0401
+@32BIT				  Text	 1
+@@ARG				  Number [FLAT:EBP+0014]
+@@ENV				  Number [FLAT:EBP+0010]
+@@HAB				  Number [FLAT:EBP-0004]
+@@HMQ				  Number [FLAT:EBP-0008]
+@@HWND				  Number [FLAT:EBP+0008]
+@@HWND				  Number [FLAT:EBP+0008]
+@@MOD				  Number [FLAT:EBP+0008]
+@@MP1				  Number [FLAT:EBP+0010]
+@@MP1				  Number [FLAT:EBP+0010]
+@@MP2				  Number [FLAT:EBP+0014]
+@@MP2				  Number [FLAT:EBP+0014]
+@@MSG				  Number [FLAT:EBP+000C]
+@@MSG				  Number [FLAT:EBP+000C]
+@@NUL				  Number [FLAT:EBP+000C]
+@@PARAMETER			  Number [FLAT:EBP+0008]
+@CODE				  Text	 FLAT
+@CODESIZE			  Text	 0
+@CPU				  Text	 1F9FH
+@CURSEG				  Text	 _TEXT
+@DATA				  Text	 FLAT
+@DATASIZE			  Text	 0
+@FILENAME			  Text	 WEBVIEW
+@INTERFACE			  Text	 00H
+@MODEL				  Text	 1
+@STACK				  Text	 FLAT
+@WORDSIZE			  Text	 4
+A1				  Number 2D413CCC
+A2				  Number 22A2F4F7
+A3				  Number 2D413CCC
+A4				  Number 539EBA43
+A5				  Number 187DE2A6
+AANFDCT				  Near	 FLAT:0000
+AANIDCT				  Near	 FLAT:020E
+ACENDEMITCODE			  Near	 FLAT:0876
+ACENDEMITDATA			  Near	 FLAT:08CC
+ACENDZEROCODE1			  Near	 FLAT:0859
+ACENDZEROCODE2			  Near	 FLAT:0876
+ACENDZERODATA1			  Near	 FLAT:08AF
+ACENDZERODATA2			  Near	 FLAT:08CC
+ACHUFFMAN			  Near	 FLAT:0828
+ACLONGTABLE			  Near	 FLAT:0577
+ACNONZEROVALUE			  Near	 FLAT:07F7
+ACNOTEMITCODE			  Near	 FLAT:0878
+ACNOTEMITDATA			  Near	 FLAT:08CE
+ACSCANBITS			  Near	 FLAT:0812
+ACTIONTAKEN			  Dword	 FLAT:064E
+ACVALID				  Near	 FLAT:0592
+APPENDTRAILER			  Near	 FLAT:0CAF
+APPLYREFERENCE			  Near	 FLAT:04F0
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 62
+Symbol Table
+
+
+
+ARGLIST				  Dword	 FLAT:00177672
+BHMEMORY			  Word	 FLAT:0E57
+BMPFILEHEADER			  Word	 FLAT:0EBB
+BUILDNEXTUNIT			  Near	 FLAT:0B14
+BYTESDONE			  Dword	 FLAT:00177686
+C00				  Number 000C
+C01				  Number 0014
+C02				  Number 001E
+C03				  Number 0028
+C04				  Number 0054
+C05				  Number 0054
+C06				  Number 0054
+C07				  Number 0054
+C10				  Number 0014
+C11				  Number 0020
+C12				  Number 002A
+C128				  Number 02000000
+C13				  Number 0036
+C14				  Number 0054
+C15				  Number 0054
+C16				  Number 0054
+C17				  Number 0054
+C20				  Number 001E
+C21				  Number 002A
+C22				  Number 0038
+C23				  Number 0042
+C24				  Number 0054
+C25				  Number 0054
+C26				  Number 0054
+C27				  Number 0054
+C30				  Number 0028
+C31				  Number 0036
+C32				  Number 0042
+C33				  Number 0054
+C34				  Number 0054
+C35				  Number 0054
+C36				  Number 0054
+C37				  Number 0054
+C40				  Number 0054
+C41				  Number 0054
+C42				  Number 0054
+C43				  Number 0054
+C44				  Number 0054
+C45				  Number 0054
+C46				  Number 0054
+C47				  Number 0054
+C50				  Number 0054
+C51				  Number 0054
+C52				  Number 0054
+C53				  Number 0054
+C54				  Number 0054
+C55				  Number 0054
+C56				  Number 0054
+C57				  Number 0054
+C60				  Number 0054
+C61				  Number 0054
+C62				  Number 0054
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 63
+Symbol Table
+
+
+
+C63				  Number 0054
+C64				  Number 0054
+C65				  Number 0054
+C66				  Number 0054
+C67				  Number 0054
+C70				  Number 0054
+C71				  Number 0054
+C72				  Number 0054
+C73				  Number 0054
+C74				  Number 0054
+C75				  Number 0054
+C76				  Number 0054
+C77				  Number 0054
+CAC				  Word	 FLAT:06E6
+CAD				  Byte	 FLAT:095C
+CAS				  Byte	 FLAT:0636
+CAT				  Byte	 FLAT:09A4
+CBM				  Number 48461F81
+CDC				  Word	 FLAT:061E
+CDD				  Byte	 FLAT:0946
+CDS				  Byte	 FLAT:0612
+CDT				  Byte	 FLAT:094E
+CHECKMARKER			  Near	 FLAT:068D
+CLIENTSOCKET			  Dword	 FLAT:066E
+CLIENTWINPROC			  Near	 FLAT:0EE1
+CLOSECLIENT			  Near	 FLAT:1267
+CNTRESTART			  Dword	 FLAT:0A65
+CONNECT				  Near	 ----:---- Extern
+CONVERTDIGIT			  Near	 FLAT:13B3
+CONVERTINPUT			  Near	 FLAT:149B
+COS0A				  Number 40000000
+COS1A				  Number 3EC52F9F
+COS2A				  Number 3B20D79D
+COS3A				  Number 3536CC51
+COS4A				  Number 2D413CCC
+COS5A				  Number 238E7673
+COS6A				  Number 187DE2A6
+COS7A				  Number 0C7C5C1E
+CQI				  Dword	 FLAT:0846
+CQT				  Dword	 FLAT:0512
+CRM				  Number 5B49532E
+D00				  Number 00400000
+D01				  Number 0058C543
+D02				  Number 00539EBA
+D03				  Number 004B418C
+D04				  Number 00400000
+D05				  Number 003248D4
+D06				  Number 0022A2F5
+D07				  Number 0011A856
+D10				  Number 0058C543
+D11				  Number 007B20D8
+D12				  Number 0073FBFC
+D13				  Number 00686214
+D14				  Number 0058C543
+D15				  Number 0045BF1F
+D16				  Number 00300AD3
+D17				  Number 00187DE3
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 64
+Symbol Table
+
+
+
+D20				  Number 00539EBA
+D21				  Number 0073FBFC
+D22				  Number 006D413D
+D23				  Number 006253A6
+D24				  Number 00539EBA
+D25				  Number 0041B328
+D26				  Number 002D413D
+D27				  Number 0017121A
+D30				  Number 004B418C
+D31				  Number 00686214
+D32				  Number 006253A6
+D33				  Number 00587DE3
+D34				  Number 004B418C
+D35				  Number 003B20D8
+D36				  Number 0028BA70
+D37				  Number 0014C35A
+D40				  Number 00400000
+D41				  Number 0058C543
+D42				  Number 00539EBA
+D43				  Number 004B418C
+D44				  Number 00400000
+D45				  Number 003248D4
+D46				  Number 0022A2F5
+D47				  Number 0011A856
+D50				  Number 003248D4
+D51				  Number 0045BF1F
+D52				  Number 0041B328
+D53				  Number 003B20D8
+D54				  Number 003248D4
+D55				  Number 0027821D
+D56				  Number 001B36B9
+D57				  Number 000DDF9B
+D60				  Number 0022A2F5
+D61				  Number 00300AD3
+D62				  Number 002D413D
+D63				  Number 0028BA70
+D64				  Number 0022A2F5
+D65				  Number 001B36B9
+D66				  Number 0012BEC3
+D67				  Number 00098E63
+D70				  Number 0011A856
+D71				  Number 00187DE3
+D72				  Number 0017121A
+D73				  Number 0014C35A
+D74				  Number 0011A856
+D75				  Number 000DDF9B
+D76				  Number 00098E63
+D77				  Number 0004DF28
+DCENDEMITCODE			  Near	 FLAT:075F
+DCENDEMITDATA			  Near	 FLAT:07A9
+DCENDZEROCODE1			  Near	 FLAT:0742
+DCENDZEROCODE2			  Near	 FLAT:075F
+DCENDZERODATA1			  Near	 FLAT:078C
+DCENDZERODATA2			  Near	 FLAT:07A9
+DCHUFFMAN			  Near	 FLAT:0711
+DCLONGTABLE			  Near	 FLAT:048D
+DCNONZEROVALUE			  Near	 FLAT:0705
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 65
+Symbol Table
+
+
+
+DCNOTEMITCODE			  Near	 FLAT:0761
+DCNOTEMITDATA			  Near	 FLAT:07AB
+DCSCANBITS			  Near	 FLAT:070C
+DCVALID				  Near	 FLAT:04AC
+DCVALUE				  Dword	 FLAT:040C
+DEC2BIN				  Near	 FLAT:1497
+DECODER				  Near	 FLAT:0414
+DEVCLOSEDC			  Near	 ----:---- Extern
+DEVOPENDC			  Near	 ----:---- Extern
+DOSBEEP				  Near	 ----:---- Extern
+DOSCLOSE			  Near	 ----:---- Extern
+DOSCREATETHREAD			  Near	 ----:---- Extern
+DOSEXIT				  Near	 ----:---- Extern
+DOSFREEMEM			  Near	 ----:---- Extern
+DOSOPEN				  Near	 ----:---- Extern
+DOSSETPRIORITY			  Near	 ----:---- Extern
+DOSSLEEP			  Near	 ----:---- Extern
+DOSSUSPENDTHREAD		  Near	 ----:---- Extern
+DOSWRITE			  Near	 ----:---- Extern
+ENCODER				  Near	 FLAT:06BF
+ENDACDECODE			  Near	 FLAT:0581
+ENDBITMAP			  Near	 FLAT:1438
+ENDDCDECODE			  Near	 FLAT:049B
+ENDDEC2BIN			  Near	 FLAT:14B0
+ENDDECODE			  Near	 FLAT:0619
+ENDDECODER			  Near	 FLAT:06AD
+ENDENCODE			  Near	 FLAT:08D2
+ENDFREESTRING			  Near	 FLAT:11C2
+ENDMAINMSGQUEUE			  Near	 FLAT:0EC7
+ENDOBTAINMSGQUEUE		  Near	 FLAT:1386
+ENDOBTAINTHREAD			  Near	 FLAT:1391
+ENDPROCESS			  Near	 FLAT:0ED5
+ENDPROCESSMESSAGE		  Near	 FLAT:0E9D
+ENDSCANSTRING			  Near	 FLAT:153F
+ENDSCREEN			  Near	 FLAT:0E9D
+ENDSHOWSTRING			  Near	 FLAT:11B0
+ENDSKIPZERO0			  Near	 FLAT:0452
+ENDSKIPZERO1			  Near	 FLAT:04D7
+ENDSKIPZERO2			  Near	 FLAT:053C
+ENDSKIPZERO3			  Near	 FLAT:05D3
+ENDSKIPZERO4			  Near	 FLAT:067D
+ENDSOCKETATTEMPT		  Near	 FLAT:12B3
+ENDTAKESNAPSHOT			  Near	 FLAT:11C2
+ENDTAKETESTSHOT			  Near	 FLAT:1303
+ENDVERIFYBITS0			  Near	 FLAT:0457
+ENDVERIFYBITS1			  Near	 FLAT:04DC
+ENDVERIFYBITS2			  Near	 FLAT:0541
+ENDVERIFYBITS3			  Near	 FLAT:05D8
+ENDVERIFYBITS4			  Near	 FLAT:0682
+ENDWINDOW			  Near	 FLAT:0EAB
+ENDWRITER			  Near	 FLAT:0CE1
+FACTORS				  Near	 FLAT:0AA7
+FHOUTPUT			  Dword	 FLAT:0017768A
+FLCREATEFLAGS			  Dword	 FLAT:0E3B
+FRAMEWINPROC			  Near	 FLAT:1048
+GCB				  Number 160663C7
+GCR				  Number 2DB47842
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 66
+Symbol Table
+
+
+
+GOODIMAGE			  Byte	 FLAT:0A64
+GOODINPUT			  Byte	 FLAT:0E9E
+GPIBITBLT			  Near	 ----:---- Extern
+GPICREATEBITMAP			  Near	 ----:---- Extern
+GPICREATEPS			  Near	 ----:---- Extern
+GPIDELETEBITMAP			  Near	 ----:---- Extern
+GPIDESTROYPS			  Near	 ----:---- Extern
+GPISETBITMAP			  Near	 ----:---- Extern
+GPISETBITMAPBITS		  Near	 ----:---- Extern
+HAB				  Dword	 FLAT:0616
+HBMMEMORY			  Dword	 FLAT:0656
+HCINBITS			  Dword	 FLAT:0400
+HCOFFSET			  Dword	 FLAT:0404
+HCSTATUS			  Dword	 FLAT:0408
+HDCMEMORY			  Dword	 FLAT:065A
+HDCSCREEN			  Dword	 FLAT:065E
+HDRAPP				  Byte	 FLAT:0BAF
+HDRCOM				  Byte	 FLAT:0BC1
+HDRDHTCA			  Byte	 FLAT:0D68
+HDRDHTCD			  Byte	 FLAT:0D47
+HDRDHTYA			  Byte	 FLAT:0C90
+HDRDHTYD			  Byte	 FLAT:0C6F
+HDRDQTC				  Byte	 FLAT:0C17
+HDRDQTY				  Byte	 FLAT:0BD2
+HDREOI				  Byte	 FLAT:0E2D
+HDRSOF				  Byte	 FLAT:0C5C
+HDRSOI				  Byte	 FLAT:0BAD
+HDRSOS				  Byte	 FLAT:0E1F
+HEX2ASCII			  Byte	 FLAT:0E9F
+HMQ				  Dword	 FLAT:061A
+HPSMEMORY			  Dword	 FLAT:0662
+HPSSCREEN			  Dword	 FLAT:0666
+HUFFMAN				  Near	 FLAT:0AE2
+HWNDCLIENT			  Dword	 FLAT:061E
+HWNDFRAME			  Dword	 FLAT:0622
+INBUFFER			  Byte	 FLAT:0672
+IQT				  Dword	 FLAT:0AAD
+IX				  Number 0280
+IY				  Number 01E0
+JPG2RAW				  Near	 FLAT:1447
+JPG2RGB				  Near	 FLAT:0911
+MAINROUTINE			  Near	 FLAT:0CF0
+MCB				  Number 716872B0
+MCR				  Number 59BA5E35
+MCU				  Dword	 FLAT:0000
+NEXTACDECODE			  Near	 FLAT:0521
+NEXTACELEMENT			  Near	 FLAT:07B2
+NEXTCOLSPASS			  Near	 FLAT:0002
+NEXTDCDECODE			  Near	 FLAT:0437
+NEXTDCELEMENT			  Near	 FLAT:06CF
+NEXTMARKER			  Near	 FLAT:0A64
+NEXTPASSCOLS			  Near	 FLAT:0210
+NEXTPASSROWS			  Near	 FLAT:030D
+NEXTROWSPASS			  Near	 FLAT:0103
+NEXTUNITROW			  Near	 FLAT:0B16
+NOTBITMAP			  Near	 FLAT:1446
+NOTCOMMAND			  Near	 FLAT:0F6F
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 67
+Symbol Table
+
+
+
+NOTCREATESCREEN			  Near	 FLAT:0FFB
+NOTDESTROYSCREEN		  Near	 FLAT:1032
+NOTENDOFBLOCK			  Near	 FLAT:05A5
+NOTEXITCAMERA			  Near	 FLAT:0F7C
+NOTIPADDRESS			  Near	 FLAT:1514
+NOTMAXIMIZEWINDOW		  Near	 FLAT:10C4
+NOTOUTPUT			  Near	 FLAT:1496
+NOTREFRESHSCREEN		  Near	 FLAT:0F55
+NOTRESTOREWINDOW		  Near	 FLAT:10E0
+NOTSKIPZEROES			  Near	 FLAT:05AF
+NOTSNAPSHOT			  Near	 FLAT:0F6B
+NOTWRITER			  Near	 FLAT:0CEF
+OBTAINRESPONSE			  Near	 FLAT:1237
+OBTAINTHREAD			  Near	 FLAT:10FC
+OUTBUFFER			  Byte	 FLAT:0004B672
+OX				  Number 0140
+OY				  Number 00F0
+PAMEMORY			  Dword	 FLAT:0E63
+PASSTOOLDFRAMEPROCEDURE		  Near	 FLAT:10E0
+PORT				  Number 3791
+PROCESSARGUMENTS		  Near	 FLAT:14B1
+PROCESSMESSAGE			  Near	 FLAT:0E6B
+Q00				  Number 08000000
+Q01				  Number 05C48695
+Q02				  Number 061F78AA
+Q03				  Number 06CDAE4B
+Q04				  Number 08000000
+Q05				  Number 0A2E9C0D
+Q06				  Number 0EC835E8
+Q07				  Number 1CFEFEFD
+Q10				  Number 05C48695
+Q11				  Number 04288406
+Q12				  Number 046A1578
+Q13				  Number 04E7AE91
+Q14				  Number 05C48695
+Q15				  Number 075742C2
+Q16				  Number 0AA84387
+Q17				  Number 14E7AE91
+Q20				  Number 061F78AA
+Q21				  Number 046A1578
+Q22				  Number 04AFB0CD
+Q23				  Number 05350659
+Q24				  Number 061F78AA
+Q25				  Number 07CB033A
+Q26				  Number 0B504F33
+Q27				  Number 163150B1
+Q30				  Number 06CDAE4B
+Q31				  Number 04E7AE91
+Q32				  Number 05350659
+Q33				  Number 05C92D84
+Q34				  Number 06CDAE4B
+Q35				  Number 08A8BD3E
+Q36				  Number 0C9234E0
+Q37				  Number 18A8BD3E
+Q40				  Number 08000000
+Q41				  Number 05C48695
+Q42				  Number 061F78AA
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 68
+Symbol Table
+
+
+
+Q43				  Number 06CDAE4B
+Q44				  Number 08000000
+Q45				  Number 0A2E9C0D
+Q46				  Number 0EC835E8
+Q47				  Number 1CFEFEFD
+Q50				  Number 0A2E9C0D
+Q51				  Number 075742C2
+Q52				  Number 07CB033A
+Q53				  Number 08A8BD3E
+Q54				  Number 0A2E9C0D
+Q55				  Number 0CF595AF
+Q56				  Number 12D062F0
+Q57				  Number 24E7AE91
+Q60				  Number 0EC835E8
+Q61				  Number 0AA84387
+Q62				  Number 0B504F33
+Q63				  Number 0C9234E0
+Q64				  Number 0EC835E8
+Q65				  Number 12D062F0
+Q66				  Number 1B504F33
+Q67				  Number 3593E882
+Q70				  Number 1CFEFEFD
+Q71				  Number 14E7AE91
+Q72				  Number 163150B1
+Q73				  Number 18A8BD3E
+Q74				  Number 1CFEFEFD
+Q75				  Number 24E7AE91
+Q76				  Number 3593E882
+Q77				  Number 6918B8C7
+QMSG				  Dword	 FLAT:0626
+RAWISOCHRONOUSREAD		  Near	 FLAT:1138
+READER				  Near	 FLAT:0A59
+READIMAGE			  Near	 FLAT:0937
+READNEXTUNIT			  Near	 FLAT:0939
+RECV				  Near	 ----:---- Extern
+RESETDECODER			  Near	 FLAT:069A
+RESTART				  Near	 FLAT:0A93
+RESULT				  Dword	 FLAT:0017767E
+RETURNCODE			  Dword	 FLAT:0017767A
+REXXFILE			  Byte	 FLAT:0EAF
+REXXSTART			  Near	 ----:---- Extern
+RGB2BMP				  Near	 FLAT:13C7
+RGB2JPG				  Near	 FLAT:0AF1
+RGB2YCC				  Near	 FLAT:0B18
+RGBBUFFER			  Byte	 FLAT:00096672
+S1				  Number 2D413CCC
+S2				  Number 539EBA43
+S3				  Number 2D413CCC
+S4				  Number 22A2F4F7
+S5				  Number 3B20D79D
+SCANIMAGE			  Near	 FLAT:0B12
+SEND				  Near	 ----:---- Extern
+SETTABLE			  Near	 FLAT:0AC7
+SHOWRETURNCODE			  Near	 FLAT:139D
+SNAPSHOT			  Byte	 FLAT:0E8D
+SOCKET				  Near	 ----:---- Extern
+SOCKETADDRESS			  Byte	 FLAT:0E8E
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 69
+Symbol Table
+
+
+
+SOCKETCREATED			  Near	 FLAT:1213
+SOCLOSE				  Near	 ----:---- Extern
+SRMEMORY			  Dword	 FLAT:0E83
+SSOUTPUT			  Byte	 FLAT:0E2F
+STORETHISB0			  Near	 FLAT:0990
+STORETHISB1			  Near	 FLAT:09A0
+STORETHISG0			  Near	 FLAT:0A0A
+STORETHISG1			  Near	 FLAT:0A17
+STORETHISR0			  Near	 FLAT:09C1
+STORETHISR1			  Near	 FLAT:09D1
+SZCLIENTCLASS			  Byte	 FLAT:0E3F
+SZDEVICETOKEN			  Byte	 FLAT:0E8B
+SZMESSAGETEXT			  Byte	 FLAT:0418
+SZOUTPUT			  Byte	 FLAT:0ED5
+SZWINDOWTITLE			  Byte	 FLAT:0517
+TIDOBTAIN			  Dword	 FLAT:0652
+TRYISOCHRONOUSREAD		  Near	 FLAT:112E
+UNITROWNEXT			  Near	 FLAT:0949
+UPDATEHEIGHTPOSITION		  Near	 FLAT:10A8
+USEMARKER			  Near	 FLAT:0A7A
+USERESTART			  Dword	 FLAT:0A69
+VALIDZEROCOUNT			  Near	 FLAT:0809
+VERIFYBITS0			  Near	 FLAT:0437
+VERIFYBITS1			  Near	 FLAT:04BC
+VERIFYBITS2			  Near	 FLAT:0521
+VERIFYBITS3			  Near	 FLAT:05B8
+VERIFYBITS4			  Near	 FLAT:0662
+VERIFYCOUNTER			  Near	 FLAT:07F9
+VGA				  Number 0001
+WINBEGINPAINT			  Near	 ----:---- Extern
+WINCREATEMSGQUEUE		  Near	 ----:---- Extern
+WINCREATESTDWINDOW		  Near	 ----:---- Extern
+WINCREATEWINDOW			  Near	 ----:---- Extern
+WINDEFWINDOWPROC		  Near	 ----:---- Extern
+WINDESTROYMSGQUEUE		  Near	 ----:---- Extern
+WINDESTROYWINDOW		  Near	 ----:---- Extern
+WINDISPATCHMSG			  Near	 ----:---- Extern
+WINENDPAINT			  Near	 ----:---- Extern
+WINGETMSG			  Near	 ----:---- Extern
+WININITIALIZE			  Near	 ----:---- Extern
+WININVALIDATERECT		  Near	 ----:---- Extern
+WINLOADSTRING			  Near	 ----:---- Extern
+WINMESSAGEBOX			  Near	 ----:---- Extern
+WINOLDWINDOWPROC		  Dword	 FLAT:066A
+WINPOSTMSG			  Near	 ----:---- Extern
+WINPOSTQUEUEMSG			  Near	 ----:---- Extern
+WINQUERYSYSVALUE		  Near	 ----:---- Extern
+WINREGISTERCLASS		  Near	 ----:---- Extern
+WINSETACTIVEWINDOW		  Near	 ----:---- Extern
+WINSETWINDOWPOS			  Near	 ----:---- Extern
+WINSUBCLASSWINDOW		  Near	 ----:---- Extern
+WINTERMINATE			  Near	 ----:---- Extern
+WRITER				  Near	 FLAT:0C38
+XWINDOWSIZE			  Dword	 FLAT:0646
+Y00				  Number 0008
+Y01				  Number 000A
+Y02				  Number 000A
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 70
+Symbol Table
+
+
+
+Y03				  Number 000A
+Y04				  Number 000B
+Y05				  Number 000D
+Y06				  Number 000F
+Y07				  Number 0012
+Y10				  Number 000A
+Y11				  Number 000E
+Y12				  Number 000E
+Y13				  Number 000E
+Y14				  Number 000E
+Y15				  Number 000E
+Y16				  Number 000E
+Y17				  Number 000F
+Y20				  Number 000A
+Y21				  Number 000E
+Y22				  Number 000E
+Y23				  Number 000F
+Y24				  Number 0011
+Y25				  Number 0013
+Y26				  Number 0016
+Y27				  Number 001A
+Y30				  Number 000A
+Y31				  Number 000E
+Y32				  Number 000F
+Y33				  Number 0010
+Y34				  Number 0012
+Y35				  Number 0015
+Y36				  Number 0018
+Y37				  Number 001C
+Y40				  Number 000B
+Y41				  Number 000E
+Y42				  Number 0011
+Y43				  Number 0012
+Y44				  Number 0014
+Y45				  Number 0016
+Y46				  Number 001A
+Y47				  Number 001E
+Y50				  Number 000D
+Y51				  Number 000E
+Y52				  Number 0013
+Y53				  Number 0015
+Y54				  Number 0016
+Y55				  Number 001A
+Y56				  Number 001D
+Y57				  Number 0022
+Y60				  Number 000F
+Y61				  Number 000E
+Y62				  Number 0016
+Y63				  Number 0018
+Y64				  Number 001A
+Y65				  Number 001D
+Y66				  Number 0021
+Y67				  Number 0026
+Y70				  Number 0012
+Y71				  Number 000F
+Y72				  Number 001A
+Y73				  Number 001C
+Turbo Assembler	 Version 4.1	    03-08-14 18:27:01	    Page 71
+Symbol Table
+
+
+
+Y74				  Number 001E
+Y75				  Number 0022
+Y76				  Number 0026
+Y77				  Number 002A
+YAC				  Word	 FLAT:01D4
+YAD				  Byte	 FLAT:044A
+YAS				  Byte	 FLAT:0124
+YAT				  Byte	 FLAT:0492
+YBC				  Number 0EA747D8
+YCC2RGB				  Near	 FLAT:094B
+YDC				  Word	 FLAT:010C
+YDD				  Byte	 FLAT:0434
+YDS				  Byte	 FLAT:0100
+YDT				  Byte	 FLAT:043C
+YGC				  Number 4B160957
+YQI				  Dword	 FLAT:0334
+YQT				  Dword	 FLAT:0000
+YRC				  Number 2642AED1
+YWINDOWSIZE			  Dword	 FLAT:064A
+YYO				  Byte	 FLAT:0A6D
+ZSOUTPUT			  Byte	 FLAT:0EE1
+ZZO				  Byte	 FLAT:0A24
+
+Macro Name
+
+QTABLE
+
+Groups & Segments		  Bit Size Align  Combine Class
+
+DGROUP				  Group
+  STACK				  32  2000 Para	  Stack	  STACK
+  _BSS				  32  0017768E Dword  Public  BSS
+  _DATA				  32  0EED Dword  Public  DATA
+FLAT				  Group
+_TEXT				  32  1540 Dword  Public  CODE
+
